@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Bookmark, User, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X } from 'lucide-react';
-import { generateVocabulary, generateReadingMaterials, lookupWord } from './services/geminiService';
+import { BookOpen, Bookmark, User, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { generateLesson, lookupWord } from './services/geminiService';
 
 const LEVELS = ['高中', '四级', '六级', '考研', '专四', '专八', '雅思托福'];
 
@@ -51,14 +51,29 @@ type VocabItem = {
   sourceText: string;
   collocations: (string | { en: string; cn: string })[];
   timestamp?: number;
+  meaning?: string;
+  exampleEn?: string;
+  exampleCn?: string;
+  contexts?: {
+    sourceText: string;
+    meaning: string;
+    timestamp: number;
+  }[];
 };
 
 type PhraseItem = {
   phrase: string;
   meaning: string;
+  literalMeaning?: string;
+  contextTags?: string[];
   sourceText: string;
   synonyms: { word: string; meaning: string }[];
   timestamp?: number;
+  contexts?: {
+    sourceText: string;
+    meaning: string;
+    timestamp: number;
+  }[];
 };
 
 type PreviewWord = {
@@ -368,36 +383,12 @@ function PreviewView({ level, text, onComplete, lessonData, setLessonData }: { l
     if (!lessonData) {
       const fetchLesson = async () => {
         try {
-          // Start both requests concurrently
-          const vocabPromise = generateVocabulary(level, text);
-          const readingPromise = generateReadingMaterials(level, text);
-
-          vocabPromise.then(vocabData => {
-            if (isMounted) {
-              setLessonData((prev: any) => ({ ...prev, previewWords: vocabData.previewWords }));
-              setIsDone(true);
-              setProgress(100);
-            }
-          }).catch(err => {
-            console.error("Vocab error:", err);
-            if (isMounted) setError("词汇生成失败，请重试");
-          });
-
-          readingPromise.then(readingData => {
-            if (isMounted) {
-              setLessonData((prev: any) => ({
-                ...prev,
-                paragraphs: readingData.paragraphs,
-                phrases: readingData.phrases,
-                grammar: readingData.grammar,
-                isReadingReady: true
-              }));
-            }
-          }).catch(err => {
-            console.error("Reading error:", err);
-            if (isMounted) setError("阅读材料生成失败，请重试");
-          });
-
+          const lesson = await generateLesson(level, text);
+          if (isMounted) {
+            setLessonData(lesson);
+            setIsDone(true);
+            setProgress(100);
+          }
         } catch (err) {
           console.error(err);
           if (isMounted) setError("生成失败，请重试");
@@ -885,23 +876,76 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                 )}
               </div>
 
-              {(savedVocab || []).some(v => v.word === selectedWord.word) ? (
-                <button disabled className="w-full py-4 rounded-xl bg-zinc-800 text-zinc-400 font-medium flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 mr-2" />
-                  已收藏
-                </button>
-              ) : (
-                <button 
-                  disabled={isLookingUp}
-                  onClick={() => {
-                    setSavedVocab([...(savedVocab || []), { ...selectedWord, timestamp: Date.now() }]);
-                  }}
-                  className={`w-full py-4 rounded-xl font-medium flex items-center justify-center transition-transform ${isLookingUp ? 'bg-zinc-800 text-zinc-500' : 'bg-indigo-500 text-white active:scale-[0.98]'}`}
-                >
-                  <Bookmark className="w-5 h-5 mr-2" />
-                  {isLookingUp ? '查询中...' : '收藏到生词本'}
-                </button>
-              )}
+              {(() => {
+                const existingVocab = (savedVocab || []).find(v => v.word === selectedWord.word);
+                const currentDef = selectedWord.definitions?.find(d => d.id === selectedWord.contextIndex);
+                const currentMeaning = currentDef?.meaningCn || currentDef?.meaning || selectedWord.meaning || '';
+                
+                let existingMeaning = '';
+                if (existingVocab) {
+                  const existingDef = existingVocab.definitions?.find(d => d.id === existingVocab.contextIndex);
+                  existingMeaning = existingDef?.meaningCn || existingDef?.meaning || existingVocab.meaning || '';
+                }
+
+                const isContextAlreadySaved = existingVocab && (
+                  existingVocab.sourceText === selectedWord.sourceText ||
+                  existingMeaning === currentMeaning ||
+                  (existingVocab.contexts || []).some(c => c.sourceText === selectedWord.sourceText || c.meaning === currentMeaning)
+                );
+
+                if (isContextAlreadySaved) {
+                  return (
+                    <button disabled className="w-full py-4 rounded-xl bg-zinc-800 text-zinc-400 font-medium flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 mr-2" />
+                      已收藏
+                    </button>
+                  );
+                }
+
+                if (existingVocab) {
+                  return (
+                    <button 
+                      disabled={isLookingUp}
+                      onClick={() => {
+                        const updatedVocabList = (savedVocab || []).map(v => {
+                          if (v.word === selectedWord.word) {
+                            return {
+                              ...v,
+                              contexts: [
+                                ...(v.contexts || []),
+                                {
+                                  sourceText: selectedWord.sourceText,
+                                  meaning: currentMeaning,
+                                  timestamp: Date.now()
+                                }
+                              ]
+                            };
+                          }
+                          return v;
+                        });
+                        setSavedVocab(updatedVocabList);
+                      }}
+                      className={`w-full py-4 rounded-xl font-medium flex items-center justify-center transition-transform ${isLookingUp ? 'bg-zinc-800 text-zinc-500' : 'bg-indigo-500 text-white active:scale-[0.98]'}`}
+                    >
+                      <Bookmark className="w-5 h-5 mr-2" />
+                      {isLookingUp ? '查询中...' : '追加新语境到生词本'}
+                    </button>
+                  );
+                }
+
+                return (
+                  <button 
+                    disabled={isLookingUp}
+                    onClick={() => {
+                      setSavedVocab([...(savedVocab || []), { ...selectedWord, timestamp: Date.now() }]);
+                    }}
+                    className={`w-full py-4 rounded-xl font-medium flex items-center justify-center transition-transform ${isLookingUp ? 'bg-zinc-800 text-zinc-500' : 'bg-indigo-500 text-white active:scale-[0.98]'}`}
+                  >
+                    <Bookmark className="w-5 h-5 mr-2" />
+                    {isLookingUp ? '查询中...' : '加入生词本'}
+                  </button>
+                );
+              })()}
             </motion.div>
           </>
         )}
@@ -972,22 +1016,66 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                 )}
               </div>
 
-              {(savedPhrases || []).some(p => p.phrase === selectedPhrase.phrase) ? (
-                <button disabled className="w-full py-4 rounded-xl bg-zinc-800 text-zinc-400 font-medium flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 mr-2" />
-                  已收藏
-                </button>
-              ) : (
-                <button 
-                  onClick={() => {
-                    setSavedPhrases([...(savedPhrases || []), { ...selectedPhrase, timestamp: Date.now() }]);
-                  }}
-                  className="w-full py-4 rounded-xl bg-emerald-500 text-white font-medium flex items-center justify-center active:scale-[0.98] transition-transform"
-                >
-                  <Bookmark className="w-5 h-5 mr-2" />
-                  收藏短语
-                </button>
-              )}
+              {(() => {
+                const existingPhrase = (savedPhrases || []).find(p => p.phrase === selectedPhrase.phrase);
+                const currentMeaning = selectedPhrase.meaning || '';
+                const isContextAlreadySaved = existingPhrase && (
+                  existingPhrase.sourceText === selectedPhrase.sourceText ||
+                  (existingPhrase.meaning || '') === currentMeaning ||
+                  (existingPhrase.contexts || []).some(c => c.sourceText === selectedPhrase.sourceText || c.meaning === currentMeaning)
+                );
+
+                if (isContextAlreadySaved) {
+                  return (
+                    <button disabled className="w-full py-4 rounded-xl bg-zinc-800 text-zinc-400 font-medium flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 mr-2" />
+                      已收藏
+                    </button>
+                  );
+                }
+
+                if (existingPhrase) {
+                  return (
+                    <button 
+                      onClick={() => {
+                        const updatedPhraseList = (savedPhrases || []).map(p => {
+                          if (p.phrase === selectedPhrase.phrase) {
+                            return {
+                              ...p,
+                              contexts: [
+                                ...(p.contexts || []),
+                                {
+                                  sourceText: selectedPhrase.sourceText,
+                                  meaning: currentMeaning,
+                                  timestamp: Date.now()
+                                }
+                              ]
+                            };
+                          }
+                          return p;
+                        });
+                        setSavedPhrases(updatedPhraseList);
+                      }}
+                      className="w-full py-4 rounded-xl bg-emerald-500 text-white font-medium flex items-center justify-center active:scale-[0.98] transition-transform"
+                    >
+                      <Bookmark className="w-5 h-5 mr-2" />
+                      追加新语境到生词本
+                    </button>
+                  );
+                }
+
+                return (
+                  <button 
+                    onClick={() => {
+                      setSavedPhrases([...(savedPhrases || []), { ...selectedPhrase, timestamp: Date.now() }]);
+                    }}
+                    className="w-full py-4 rounded-xl bg-emerald-500 text-white font-medium flex items-center justify-center active:scale-[0.98] transition-transform"
+                  >
+                    <Bookmark className="w-5 h-5 mr-2" />
+                    加入生词本
+                  </button>
+                );
+              })()}
             </motion.div>
           </>
         )}
@@ -1082,36 +1170,7 @@ function VocabView({ savedVocab, setSavedVocab, savedPhrases, setSavedPhrases }:
           <div className="space-y-4">
             <AnimatePresence>
               {filteredVocab.map((item) => (
-                <motion.div 
-                  key={item.word}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4 relative overflow-hidden group"
-                >
-                  <div className="flex justify-between items-start mb-2 pr-8">
-                    <div>
-                      <div className="flex items-baseline space-x-2">
-                        <span className="text-lg font-bold text-indigo-300">{item.lemma || item.word}</span>
-                        <span className="text-xs text-indigo-400/70 font-medium">{item.partOfSpeech}</span>
-                      </div>
-                      <span className="text-xs text-zinc-500 font-mono">{item.phonetic}</span>
-                    </div>
-                    <button 
-                      onClick={() => handleDeleteVocab(item.word)}
-                      className="absolute top-4 right-4 text-zinc-600 hover:text-red-400 transition-colors p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="text-sm text-zinc-300 mb-3">{item.definitions?.[0]?.meaning || (item as any).meaning}</div>
-                  {item.sourceText && (
-                    <div className="bg-zinc-950/50 rounded-lg p-3 border border-white/5">
-                      <div className="text-xs text-zinc-500 mb-1 flex items-center"><span className="mr-1">📄</span> 来源语境</div>
-                      <div className="text-sm text-zinc-400 italic">"{item.sourceText}"</div>
-                    </div>
-                  )}
-                </motion.div>
+                <VocabCard key={item.word} item={item} onDelete={() => handleDeleteVocab(item.word)} />
               ))}
             </AnimatePresence>
           </div>
@@ -1126,38 +1185,261 @@ function VocabView({ savedVocab, setSavedVocab, savedPhrases, setSavedPhrases }:
           <div className="space-y-4">
             <AnimatePresence>
               {filteredPhrases.map((item) => (
-                <motion.div 
-                  key={item.phrase}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4 relative overflow-hidden group"
-                >
-                  <div className="flex justify-between items-start mb-2 pr-8">
-                    <div>
-                      <span className="text-lg font-bold text-emerald-300">{item.phrase}</span>
-                    </div>
-                    <button 
-                      onClick={() => handleDeletePhrase(item.phrase)}
-                      className="absolute top-4 right-4 text-zinc-600 hover:text-red-400 transition-colors p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="text-sm text-zinc-300 mb-3">{item.meaning}</div>
-                  {item.sourceText && (
-                    <div className="bg-zinc-950/50 rounded-lg p-3 border border-white/5">
-                      <div className="text-xs text-zinc-500 mb-1 flex items-center"><span className="mr-1">📄</span> 来源语境</div>
-                      <div className="text-sm text-zinc-400 italic">"{item.sourceText}"</div>
-                    </div>
-                  )}
-                </motion.div>
+                <PhraseCard key={item.phrase} item={item} onDelete={() => handleDeletePhrase(item.phrase)} />
               ))}
             </AnimatePresence>
           </div>
         )
       )}
     </div>
+  );
+}
+
+// --- Vocab & Phrase Cards ---
+function VocabCard({ item, onDelete }: { item: VocabItem, onDelete: () => void }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const currentDef = item.definitions?.find(d => d.id === item.contextIndex);
+  const chineseMeaning = currentDef?.meaningCn || currentDef?.meaning || item.meaning || '';
+  const englishMeaning = currentDef?.meaning || item.definitions?.[0]?.meaning || '';
+
+  return (
+    <motion.div 
+      layout
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="bg-zinc-900/60 border border-white/5 rounded-2xl shadow-sm p-5 relative overflow-hidden group text-zinc-200"
+    >
+      {/* Header */}
+      <div className="flex justify-between items-start mb-3 pr-8">
+        <div>
+          <h3 className="text-xl font-bold text-zinc-100 tracking-tight">{item.lemma || item.word}</h3>
+          <span className="text-sm text-zinc-500 font-mono mt-0.5 block">{item.phonetic}</span>
+        </div>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-4 right-4 text-zinc-500 hover:text-red-400 transition-colors p-1"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Core */}
+      <div className="mb-4">
+        <div className="flex items-baseline space-x-2 mb-1">
+          <span className="text-xs font-bold text-indigo-300 bg-indigo-500/20 px-1.5 py-0.5 rounded">{item.partOfSpeech}</span>
+          <span className="text-base font-bold text-indigo-200">{chineseMeaning}</span>
+        </div>
+        {englishMeaning && (
+          <div className="text-sm text-zinc-400 leading-snug">{englishMeaning}</div>
+        )}
+      </div>
+
+      {/* Contexts */}
+      <div className="mb-4 space-y-3">
+        {item.sourceText && (
+          <div>
+            {item.contexts && item.contexts.length > 0 && (
+              <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>语境 1</span>
+                <span className="text-indigo-300 normal-case">{chineseMeaning}</span>
+              </div>
+            )}
+            <div className="text-sm text-zinc-400 italic border-l-2 border-indigo-500/50 pl-3 py-0.5">
+              "{item.sourceText}"
+            </div>
+          </div>
+        )}
+        {item.contexts?.map((ctx, idx) => (
+          <div key={idx}>
+            <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span>语境 {idx + 2}</span>
+              <span className="text-indigo-300 normal-case">{ctx.meaning}</span>
+            </div>
+            <div className="text-sm text-zinc-400 italic border-l-2 border-indigo-500/50 pl-3 py-0.5">
+              "{ctx.sourceText}"
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Expanded Content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-4 border-t border-white/10 space-y-4">
+              {/* Collocations */}
+              {item.collocations && item.collocations.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">常见搭配</div>
+                  <ul className="space-y-1.5">
+                    {item.collocations.map((col, idx) => {
+                      if (typeof col === 'string') {
+                        return <li key={idx} className="text-sm text-zinc-300 flex items-start"><span className="mr-1.5 text-indigo-400">•</span>{col}</li>;
+                      }
+                      return (
+                        <li key={idx} className="text-sm text-zinc-300 flex items-start">
+                          <span className="mr-1.5 text-indigo-400">•</span>
+                          <span>{col.en} <span className="text-zinc-500 text-xs ml-1">{col.cn}</span></span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* More Examples */}
+              {(item.exampleEn || item.definitions?.[0]?.scenario) && (
+                <div>
+                  <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">更多例句</div>
+                  <div className="bg-zinc-950/50 rounded-lg p-3 border border-white/5">
+                    <div className="text-sm text-zinc-300 mb-1">{item.exampleEn || item.definitions?.[0]?.scenario}</div>
+                    <div className="text-xs text-zinc-500">{item.exampleCn || item.definitions?.[0]?.scenarioCn}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Action */}
+      <button 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full mt-2 pt-3 border-t border-white/10 flex items-center justify-center text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
+      >
+        {isExpanded ? (
+          <>收起详情 <ChevronUp className="w-3 h-3 ml-1" /></>
+        ) : (
+          <>展开详情 <ChevronDown className="w-3 h-3 ml-1" /></>
+        )}
+      </button>
+    </motion.div>
+  );
+}
+
+function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <motion.div 
+      layout
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="bg-zinc-900/60 border border-white/5 rounded-2xl shadow-sm p-5 relative overflow-hidden group text-zinc-200"
+    >
+      {/* Header */}
+      <div className="flex justify-between items-start mb-3 pr-8">
+        <div>
+          <h3 className="text-xl font-bold text-zinc-100 tracking-tight mb-1">{item.phrase}</h3>
+          {item.contextTags && item.contextTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {item.contextTags.map((tag, idx) => (
+                <span key={idx} className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-4 right-4 text-zinc-500 hover:text-red-400 transition-colors p-1"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Core */}
+      <div className="mb-4 space-y-2">
+        <div className="flex items-start">
+          <span className="text-xs font-bold text-zinc-500 w-16 shrink-0 mt-0.5">地道含义</span>
+          <span className="text-base font-bold text-emerald-200">{item.meaning}</span>
+        </div>
+        {item.literalMeaning && (
+          <div className="flex items-start">
+            <span className="text-xs font-bold text-zinc-500 w-16 shrink-0 mt-0.5">字面意思</span>
+            <span className="text-sm text-zinc-400">{item.literalMeaning}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Contexts */}
+      <div className="mb-4 space-y-3">
+        {item.sourceText && (
+          <div>
+            {item.contexts && item.contexts.length > 0 && (
+              <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>语境 1</span>
+                <span className="text-emerald-300 normal-case">{item.meaning}</span>
+              </div>
+            )}
+            <div className="text-sm text-zinc-400 italic border-l-2 border-emerald-500/50 pl-3 py-0.5">
+              "{item.sourceText}"
+            </div>
+          </div>
+        )}
+        {item.contexts?.map((ctx, idx) => (
+          <div key={idx}>
+            <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span>语境 {idx + 2}</span>
+              <span className="text-emerald-300 normal-case">{ctx.meaning}</span>
+            </div>
+            <div className="text-sm text-zinc-400 italic border-l-2 border-emerald-500/50 pl-3 py-0.5">
+              "{ctx.sourceText}"
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Expanded Content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-4 border-t border-white/10 space-y-4">
+              {/* Synonyms / Paraphrase */}
+              {item.synonyms && item.synonyms.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">同义替换 (Paraphrase)</div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {item.synonyms.map((syn, idx) => (
+                      <div key={idx} className="bg-zinc-950/50 border border-white/5 rounded-lg p-2.5 flex items-center justify-between">
+                        <span className="text-sm font-medium text-zinc-300">{syn.word}</span>
+                        <span className="text-xs text-zinc-500">{syn.meaning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Action */}
+      <button 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full mt-2 pt-3 border-t border-white/10 flex items-center justify-center text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
+      >
+        {isExpanded ? (
+          <>收起详情 <ChevronUp className="w-3 h-3 ml-1" /></>
+        ) : (
+          <>展开详情 <ChevronDown className="w-3 h-3 ml-1" /></>
+        )}
+      </button>
+    </motion.div>
   );
 }
 
