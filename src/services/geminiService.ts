@@ -71,7 +71,7 @@ Provide the following:
 1. A paragraph-by-paragraph breakdown containing the English text and its Chinese translation.
 2. EXACTLY 15 key vocabulary words from the English text. If there are fewer than 15 candidates, extract as many as possible. Prioritize words with high daily usage frequency, words crucial for understanding the text, and words with rich collocations. For the 'word' field, you MUST provide the EXACT string as it appears in the English text (including tense, pluralization, etc.). This is crucial for highlighting the words in the text using exact string matching. IMPORTANT: If the extracted word is not in its base form (e.g., past tense, plural), you MUST append its morphological form in parentheses to the 'partOfSpeech' field (e.g., 'v. (过去式)', 'n. (复数)'). For the 'definitions' array, you MUST provide 2-3 distinct common meanings of the word (including the specific meaning used in the current text) to help the user learn polysemy (一词多义).
 3. 4-6 key phrases/idioms (MUST contain at least 2 words, e.g., 'look forward to', 'in terms of') used in the English text (appropriate for the ${level} level and above). Provide the EXACT string as it appears in the English text. Provide its deep/actual meaning in Chinese ('meaning'), its literal meaning in Chinese if different ('literalMeaning'), 1-2 context tags like '正式', '口语', '职场' ('contextTags'), the original sentence they appeared in, and 2 synonyms for paraphrasing.
-4. 1 to 2 key grammar patterns, sentence structures, or rhetorical devices used in the English text. CRITICAL: The difficulty MUST strictly match the ${level} level. Provide the English explanation and its Chinese translation, the original sentence and its Chinese translation, and a new daily life example sentence and its Chinese translation.
+4. 1 to 2 key grammar patterns, sentence structures, or rhetorical devices used in the English text. CRITICAL: The difficulty MUST strictly match the ${level} level. Provide the English pattern name, its Chinese translation ('patternCn'), the English explanation and its Chinese translation, the original sentence and its Chinese translation, and a new daily life example sentence and its Chinese translation.
 
 Return the result as a JSON object.`;
 
@@ -171,6 +171,7 @@ Return the result as a JSON object.`;
               type: Type.OBJECT,
               properties: {
                 pattern: { type: Type.STRING },
+                patternCn: { type: Type.STRING },
                 explanation: { type: Type.STRING },
                 explanationCn: { type: Type.STRING },
                 originalSentence: { type: Type.STRING },
@@ -178,7 +179,7 @@ Return the result as a JSON object.`;
                 exampleSentence: { type: Type.STRING },
                 exampleSentenceCn: { type: Type.STRING },
               },
-              required: ["pattern", "explanation", "explanationCn", "originalSentence", "originalSentenceCn", "exampleSentence", "exampleSentenceCn"],
+              required: ["pattern", "patternCn", "explanation", "explanationCn", "originalSentence", "originalSentenceCn", "exampleSentence", "exampleSentenceCn"],
             },
           },
         },
