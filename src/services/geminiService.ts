@@ -190,6 +190,7 @@ Return the result as a JSON object.`;
 
   const responseText = response.text || "{}";
   const data = parseJSON(responseText);
+  
   return {
     paragraphs: data.paragraphs || data.paragraph || (Array.isArray(data) ? data : []),
     previewWords: data.previewWords || data.words || data.vocabulary || [],
