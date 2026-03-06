@@ -742,17 +742,23 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
             <motion.div 
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-black/10 dark:border-white/10 rounded-t-3xl z-50 p-6 max-w-md mx-auto pb-safe max-h-[85vh] overflow-y-auto scrollbar-hide"
-              drag="y"
-              dragConstraints={{ top: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(e, info) => {
-                if (info.offset.y > 100) setSelectedWord(null);
-              }}
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-black/10 dark:border-white/10 rounded-t-3xl z-50 max-w-md mx-auto pb-safe max-h-[85vh] flex flex-col"
             >
-              <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full mx-auto mb-6 opacity-50"></div>
+              {/* Drag Handle */}
+              <div 
+                className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"
+                drag="y"
+                dragConstraints={{ top: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, info) => {
+                  if (info.offset.y > 100) setSelectedWord(null);
+                }}
+              >
+                <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full opacity-50"></div>
+              </div>
               
-              <div className="flex justify-between items-start mb-6">
+              <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide">
+                <div className="flex justify-between items-start mb-6">
                 <div>
                   <div className="flex items-baseline space-x-2 mb-1">
                     <h3 className="text-3xl font-bold text-[#1D1D1F] dark:text-zinc-100">{selectedWord.lemma || selectedWord.word}</h3>
@@ -907,6 +913,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                   </button>
                 );
               })()}
+              </div>
             </motion.div>
           </>
         )}
@@ -924,17 +931,23 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
             <motion.div 
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-black/10 dark:border-white/10 rounded-t-3xl z-50 p-6 max-w-md mx-auto pb-safe max-h-[85vh] overflow-y-auto scrollbar-hide"
-              drag="y"
-              dragConstraints={{ top: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(e, info) => {
-                if (info.offset.y > 100) setSelectedPhrase(null);
-              }}
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-black/10 dark:border-white/10 rounded-t-3xl z-50 max-w-md mx-auto pb-safe max-h-[85vh] flex flex-col"
             >
-              <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full mx-auto mb-6 opacity-50"></div>
-              
-              <div className="flex justify-between items-start mb-6">
+              {/* Drag Handle */}
+              <div 
+                className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"
+                drag="y"
+                dragConstraints={{ top: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, info) => {
+                  if (info.offset.y > 100) setSelectedPhrase(null);
+                }}
+              >
+                <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full opacity-50"></div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide">
+                <div className="flex justify-between items-start mb-6">
                 <div>
                   <div className="flex items-baseline space-x-2 mb-1">
                     <h3 className="text-3xl font-bold text-[#1D1D1F] dark:text-zinc-100">{selectedPhrase.phrase}</h3>
@@ -1056,10 +1069,11 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                     className="w-full py-4 rounded-xl bg-emerald-500 text-white font-medium flex items-center justify-center active:scale-[0.98] transition-transform"
                   >
                     <Bookmark className="w-5 h-5 mr-2" />
-                    加入生词本
+                    {isLookingUp ? '加入生词本' : '加入生词本'}
                   </button>
                 );
               })()}
+              </div>
             </motion.div>
           </>
         )}
