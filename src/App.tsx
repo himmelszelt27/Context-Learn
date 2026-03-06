@@ -63,8 +63,10 @@ type VocabItem = {
 
 type PhraseItem = {
   phrase: string;
-  meaning: string;
-  literalMeaning?: string;
+  contextMeaningEn: string;
+  contextMeaningCn: string;
+  commonMeaningEn: string;
+  commonMeaningCn: string;
   contextTags?: string[];
   sourceText: string;
   synonyms: { word: string; meaning: string }[];
@@ -74,6 +76,9 @@ type PhraseItem = {
     meaning: string;
     timestamp: number;
   }[];
+  // Legacy fields for backward compatibility
+  meaning?: string;
+  literalMeaning?: string;
 };
 
 type PreviewWord = {
@@ -886,27 +891,50 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                 <div>
                   <div className="flex items-baseline space-x-2 mb-1">
                     <h3 className="text-3xl font-bold text-[#1D1D1F] dark:text-zinc-100">{selectedPhrase.phrase}</h3>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-sm font-medium">短语</span>
                   </div>
                 </div>
-                <button onClick={() => setSelectedPhrase(null)} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[#6E6E73] dark:text-zinc-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setShowChinese(!showChinese)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${showChinese ? 'bg-emerald-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-[#6E6E73] dark:text-zinc-400 hover:text-white'}`}
+                  >
+                    {showChinese ? '隐藏中文' : '显示中文'}
+                  </button>
+                  <button onClick={() => setSelectedPhrase(null)} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[#6E6E73] dark:text-zinc-400 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-6 mb-8">
-                {/* Meaning */}
-                <div>
-                  <h4 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3 flex items-center"><span className="mr-2">📖</span> 含义</h4>
-                  <div className="bg-white/50 dark:bg-zinc-900/50 border border-black/5 dark:border-white/5 rounded-xl p-4">
-                    <div className="text-sm text-[#1D1D1F] dark:text-zinc-300">{selectedPhrase.meaning}</div>
+                {/* Context Meaning */}
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-4 border border-emerald-100 dark:border-emerald-500/20">
+                  <div className="text-sm font-medium text-emerald-600 dark:text-emerald-300 mb-2 flex items-center">
+                    <span className="mr-2">🎯</span> 语境义
+                  </div>
+                  <div className="text-sm text-[#1D1D1F] dark:text-zinc-300 leading-relaxed">
+                    {selectedPhrase.contextMeaningEn || selectedPhrase.meaning}
+                    {showChinese && selectedPhrase.contextMeaningCn && (
+                      <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-500/20 text-emerald-600/80 dark:text-emerald-200/80">
+                        {selectedPhrase.contextMeaningCn}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Context Usage */}
-                <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-4 border border-emerald-100 dark:border-emerald-500/20">
-                  <div className="text-sm font-medium text-emerald-600 dark:text-emerald-300 mb-2 flex items-center"><span className="mr-2">🎯</span> 本文用法</div>
-                  <div className="text-sm text-[#1D1D1F] dark:text-zinc-300 leading-relaxed italic">"{selectedPhrase.sourceText}"</div>
+                {/* Common Meaning */}
+                <div>
+                  <h4 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3 flex items-center"><span className="mr-2">📖</span> 常见释义</h4>
+                  <div className="bg-white/50 dark:bg-zinc-900/50 border border-black/5 dark:border-white/5 rounded-xl p-4">
+                    <div className="text-sm text-[#1D1D1F] dark:text-zinc-300">
+                      {selectedPhrase.commonMeaningEn || selectedPhrase.literalMeaning || selectedPhrase.meaning}
+                      {showChinese && selectedPhrase.commonMeaningCn && (
+                        <div className="mt-2 text-[#6E6E73] dark:text-zinc-400">
+                          {selectedPhrase.commonMeaningCn}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Synonyms */}
@@ -927,10 +955,10 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
 
               {(() => {
                 const existingPhrase = (savedPhrases || []).find(p => p.phrase === selectedPhrase.phrase);
-                const currentMeaning = selectedPhrase.meaning || '';
+                const currentMeaning = selectedPhrase.contextMeaningCn || selectedPhrase.meaning || '';
                 const isContextAlreadySaved = existingPhrase && (
                   existingPhrase.sourceText === selectedPhrase.sourceText ||
-                  (existingPhrase.meaning || '') === currentMeaning ||
+                  (existingPhrase.contextMeaningCn || existingPhrase.meaning || '') === currentMeaning ||
                   (existingPhrase.contexts || []).some(c => c.sourceText === selectedPhrase.sourceText || c.meaning === currentMeaning)
                 );
 
@@ -1269,13 +1297,19 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
       {/* Core */}
       <div className="mb-4 space-y-2">
         <div className="flex items-start">
-          <span className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 w-16 shrink-0 mt-0.5">地道含义</span>
-          <span className="text-base font-bold text-emerald-600 dark:text-emerald-200">{item.meaning}</span>
+          <span className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 w-16 shrink-0 mt-0.5">语境义</span>
+          <div className="flex flex-col">
+            <span className="text-base font-bold text-emerald-600 dark:text-emerald-200">{item.contextMeaningCn || item.meaning}</span>
+            {item.contextMeaningEn && <span className="text-sm text-[#6E6E73] dark:text-zinc-400 mt-0.5">{item.contextMeaningEn}</span>}
+          </div>
         </div>
-        {item.literalMeaning && (
+        {(item.commonMeaningCn || item.literalMeaning) && (
           <div className="flex items-start">
-            <span className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 w-16 shrink-0 mt-0.5">字面意思</span>
-            <span className="text-sm text-[#6E6E73] dark:text-zinc-400">{item.literalMeaning}</span>
+            <span className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 w-16 shrink-0 mt-0.5">常见释义</span>
+            <div className="flex flex-col">
+              <span className="text-sm text-[#1D1D1F] dark:text-zinc-300">{item.commonMeaningCn || item.literalMeaning}</span>
+              {item.commonMeaningEn && <span className="text-sm text-[#6E6E73] dark:text-zinc-400 mt-0.5">{item.commonMeaningEn}</span>}
+            </div>
           </div>
         )}
       </div>
@@ -1287,7 +1321,7 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
             {item.contexts && item.contexts.length > 0 && (
               <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
                 <span>语境 1</span>
-                <span className="text-emerald-600 dark:text-emerald-300 normal-case">{item.meaning}</span>
+                <span className="text-emerald-600 dark:text-emerald-300 normal-case">{item.contextMeaningCn || item.meaning}</span>
               </div>
             )}
             <div className="text-sm text-[#6E6E73] dark:text-zinc-400 italic border-l-2 border-blue-300 dark:border-emerald-500/50 pl-3 py-0.5">
