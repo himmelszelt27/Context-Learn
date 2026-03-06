@@ -290,59 +290,93 @@ Return the result as a JSON object.`;
 }
 
 export async function lookupWord(word: string, contextSentence: string) {
+  // 1. 尝试从缓存读取
+  const cacheKey = `lookup_${word.toLowerCase()}_${contextSentence.substring(0, 30)}_${contextSentence.length}`;
+  try {
+    const cachedData = localStorage.getItem(cacheKey);
+    if (cachedData) {
+      console.log(`Loading lookup for "${word}" from cache...`);
+      return JSON.parse(cachedData);
+    }
+  } catch (e) {
+    console.warn("Cache read failed", e);
+  }
+
   const prompt = `The user clicked on the word '${word}' in the following sentence: '${contextSentence}'.
 Provide a detailed dictionary entry for this word, focusing on its usage in this specific context.
 For 'meaning', 'scenario', and 'contextExplanation', provide the English explanation, and also provide the Chinese translation in 'meaningCn', 'scenarioCn', and 'contextExplanationCn'.
 Return the result as a JSON object.`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          word: { type: Type.STRING },
-          lemma: { type: Type.STRING, description: "base form of the word" },
-          phonetic: { type: Type.STRING },
-          partOfSpeech: { type: Type.STRING },
-          definitions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.INTEGER },
-                meaning: { type: Type.STRING, description: "English meaning" },
-                meaningCn: { type: Type.STRING, description: "Chinese meaning" },
-                scenario: { type: Type.STRING, description: "English scenario" },
-                scenarioCn: { type: Type.STRING, description: "Chinese scenario" },
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemma-3-27b-it", // 切换到高配额的 Gemma 3 27B
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            word: { type: Type.STRING },
+            lemma: { type: Type.STRING, description: "base form of the word" },
+            phonetic: { type: Type.STRING },
+            partOfSpeech: { type: Type.STRING },
+            definitions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.INTEGER },
+                  meaning: { type: Type.STRING, description: "English meaning" },
+                  meaningCn: { type: Type.STRING, description: "Chinese meaning" },
+                  scenario: { type: Type.STRING, description: "English scenario" },
+                  scenarioCn: { type: Type.STRING, description: "Chinese scenario" },
+                },
+                required: ["id", "meaning", "meaningCn", "scenario", "scenarioCn"],
               },
-              required: ["id", "meaning", "meaningCn", "scenario", "scenarioCn"],
+              description: "list 2-3 common meanings, including the context meaning",
             },
-            description: "list 2-3 common meanings, including the context meaning",
-          },
-          contextIndex: { type: Type.INTEGER, description: "the id of the definition that matches the context" },
-          contextExplanation: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in English)" },
-          contextExplanationCn: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in Chinese)" },
-          collocations: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                en: { type: Type.STRING, description: "collocation in English" },
-                cn: { type: Type.STRING, description: "collocation translated to Chinese" }
+            contextIndex: { type: Type.INTEGER, description: "the id of the definition that matches the context" },
+            contextExplanation: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in English)" },
+            contextExplanationCn: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in Chinese)" },
+            collocations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  en: { type: Type.STRING, description: "collocation in English" },
+                  cn: { type: Type.STRING, description: "collocation translated to Chinese" }
+                },
+                required: ["en", "cn"]
               },
-              required: ["en", "cn"]
+              description: "2-3 common collocations or phrases using this word",
             },
-            description: "2-3 common collocations or phrases using this word",
           },
+          required: ["word", "lemma", "phonetic", "partOfSpeech", "definitions", "contextIndex", "contextExplanation", "contextExplanationCn", "collocations"],
         },
-        required: ["word", "lemma", "phonetic", "partOfSpeech", "definitions", "contextIndex", "contextExplanation", "contextExplanationCn", "collocations"],
       },
-    },
-  });
+    });
 
-  const responseText = response.text || "{}";
-  return parseJSON(responseText);
+    const responseText = response.text || "{}";
+    const result = parseJSON(responseText);
+
+    // 2. 存入缓存
+    if (result && Object.keys(result).length > 0) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      } catch (e) {
+        console.warn("Failed to save lookup to cache", e);
+      }
+    }
+
+    return result;
+  } catch (err) {
+    console.error("Gemma lookup failed, trying Gemini fallback...", err);
+    // 如果 Gemma 失败，尝试回退到 Gemini (虽然 Gemini 可能也没额度了，但作为保底)
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: { responseMimeType: "application/json" }
+    });
+    return parseJSON(response.text || "{}");
+  }
 }

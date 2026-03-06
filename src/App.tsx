@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Bookmark, Cat, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { BookOpen, Bookmark, Cat, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp, Calendar, History, Clock, BarChart2, Info } from 'lucide-react';
 import { generateLesson, lookupWord } from './services/geminiService';
 
 const LEVELS = ['高中', '四级', '六级', '考研', '专四', '专八', '雅思托福'];
@@ -120,6 +120,8 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useLocalStorage('contextlearn_dark_mode', false);
   const [lessonData, setLessonData] = useState<any>(null);
   const [currentText, setCurrentText] = useState('');
+  const [history, setHistory] = useLocalStorage<any[]>('contextlearn_history', []);
+  const [dailyStats, setDailyStats] = useLocalStorage<Record<string, { wordCount: number, masteredWords: number }>>('contextlearn_daily_stats', {});
 
   useEffect(() => {
     if (isDarkMode) {
@@ -144,17 +146,55 @@ export default function App() {
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {activeTab === 'home' && <HomeView level={level} setLevel={setLevel} onStart={handleStartLearning} />}
               {activeTab === 'vocab' && <VocabView savedVocab={savedVocab} setSavedVocab={setSavedVocab} savedPhrases={savedPhrases} setSavedPhrases={setSavedPhrases} />}
-              {activeTab === 'profile' && <ProfileView level={level} setLevel={setLevel} stats={stats} savedCount={(savedVocab?.length || 0) + (savedPhrases?.length || 0)} setSavedVocab={setSavedVocab} setSavedPhrases={setSavedPhrases} setStats={setStats} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}
+              {activeTab === 'profile' && (
+                <ProfileView 
+                  level={level} 
+                  setLevel={setLevel} 
+                  stats={stats} 
+                  savedCount={(savedVocab?.length || 0) + (savedPhrases?.length || 0)} 
+                  setSavedVocab={setSavedVocab} 
+                  setSavedPhrases={setSavedPhrases} 
+                  setStats={setStats} 
+                  isDarkMode={isDarkMode} 
+                  setIsDarkMode={setIsDarkMode}
+                  history={history}
+                  setHistory={setHistory}
+                  dailyStats={dailyStats}
+                  setDailyStats={setDailyStats}
+                  onHistoryItemClick={(item: any) => {
+                    setCurrentText(item.text);
+                    setLessonData(item.lessonData);
+                    setView('preview');
+                  }}
+                />
+              )}
             </motion.div>
           )}
           {view === 'preview' && (
             <motion.div key="preview" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-              <PreviewView level={level} text={currentText} onComplete={() => setView('reading')} onBack={() => setView('main')} lessonData={lessonData} setLessonData={setLessonData} />
+              <PreviewView 
+                level={level} 
+                text={currentText} 
+                onComplete={() => setView('reading')} 
+                onBack={() => setView('main')} 
+                lessonData={lessonData} 
+                setLessonData={setLessonData}
+                setHistory={setHistory}
+                setDailyStats={setDailyStats}
+              />
             </motion.div>
           )}
           {view === 'reading' && (
             <motion.div key="reading" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-              <ReadingView onBack={() => setView('main')} savedVocab={savedVocab} setSavedVocab={setSavedVocab} savedPhrases={savedPhrases} setSavedPhrases={setSavedPhrases} lessonData={lessonData} />
+              <ReadingView 
+                onBack={() => setView('main')} 
+                savedVocab={savedVocab} 
+                setSavedVocab={setSavedVocab} 
+                savedPhrases={savedPhrases} 
+                setSavedPhrases={setSavedPhrases} 
+                lessonData={lessonData} 
+                setDailyStats={setDailyStats}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -272,7 +312,25 @@ function HomeView({ level, setLevel, onStart }: { level: string, setLevel: (l: s
 }
 
 // --- Preview View ---
-function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonData }: { level: string, text: string, onComplete: () => void, onBack: () => void, lessonData: any, setLessonData: any }) {
+function PreviewView({ 
+  level, 
+  text, 
+  onComplete, 
+  onBack, 
+  lessonData, 
+  setLessonData,
+  setHistory,
+  setDailyStats
+}: { 
+  level: string, 
+  text: string, 
+  onComplete: () => void, 
+  onBack: () => void, 
+  lessonData: any, 
+  setLessonData: any,
+  setHistory: any,
+  setDailyStats: any
+}) {
   const [progress, setProgress] = useState(0);
   const [isDone, setIsDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -321,6 +379,9 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
               setLessonData(parsedCache);
               setIsDone(true);
               setProgress(100);
+              
+              // 记录历史和统计 (即使是缓存)
+              recordActivity(parsedCache);
             }
             return;
           }
@@ -339,11 +400,45 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
             setLessonData(lesson);
             setIsDone(true);
             setProgress(100);
+            
+            // 记录历史和统计
+            recordActivity(lesson);
           }
         } catch (err: any) {
           console.error(err);
           if (isMounted) setError(err.message || "生成失败了 QAQ");
         }
+      };
+
+      const recordActivity = (data: any) => {
+        const today = new Date().toISOString().split('T')[0];
+        const wordCount = text.trim().split(/\s+/).length;
+
+        // 更新历史记录
+        setHistory((prev: any[]) => {
+          const exists = prev.find(h => h.text === text && h.level === level);
+          if (exists) return prev;
+          return [{
+            id: Date.now(),
+            text,
+            level,
+            timestamp: Date.now(),
+            lessonData: data,
+            wordCount
+          }, ...prev].slice(0, 50); // 最多保留50条
+        });
+
+        // 更新每日统计
+        setDailyStats((prev: any) => {
+          const current = prev[today] || { wordCount: 0, masteredWords: 0 };
+          return {
+            ...prev,
+            [today]: {
+              ...current,
+              wordCount: current.wordCount + wordCount
+            }
+          };
+        });
       };
 
       fetchLesson();
@@ -520,11 +615,41 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
   );
 }
 // --- Reading View ---
-function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSavedPhrases, lessonData }: { onBack: () => void, savedVocab: VocabItem[], setSavedVocab: any, savedPhrases: PhraseItem[], setSavedPhrases: any, lessonData: any }) {
+function ReadingView({ 
+  onBack, 
+  savedVocab, 
+  setSavedVocab, 
+  savedPhrases, 
+  setSavedPhrases, 
+  lessonData,
+  setDailyStats
+}: { 
+  onBack: () => void, 
+  savedVocab: VocabItem[], 
+  setSavedVocab: any, 
+  savedPhrases: PhraseItem[], 
+  setSavedPhrases: any, 
+  lessonData: any,
+  setDailyStats: any
+}) {
   const [mode, setMode] = useState<'en' | 'bilingual'>('en');
   const [selectedWord, setSelectedWord] = useState<VocabItem | null>(null);
   const [selectedPhrase, setSelectedPhrase] = useState<PhraseItem | null>(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
+
+  const recordMasteredWord = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setDailyStats((prev: any) => {
+      const current = prev[today] || { wordCount: 0, masteredWords: 0 };
+      return {
+        ...prev,
+        [today]: {
+          ...current,
+          masteredWords: current.masteredWords + 1
+        }
+      };
+    });
+  };
   const [showChinese, setShowChinese] = useState(false);
 
   useEffect(() => {
@@ -930,6 +1055,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                           return v;
                         });
                         setSavedVocab(updatedVocabList);
+                        recordMasteredWord();
                       }}
                       className={`w-full py-4 rounded-xl font-medium flex items-center justify-center transition-transform ${isLookingUp ? 'bg-zinc-100 dark:bg-zinc-800 text-[#6E6E73] dark:text-zinc-500' : 'bg-indigo-500 text-white active:scale-[0.98]'}`}
                     >
@@ -944,6 +1070,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                     disabled={isLookingUp}
                     onClick={() => {
                       setSavedVocab([...(savedVocab || []), { ...selectedWord, timestamp: Date.now() }]);
+                      recordMasteredWord();
                     }}
                     className={`w-full py-4 rounded-xl font-medium flex items-center justify-center transition-transform ${isLookingUp ? 'bg-zinc-100 dark:bg-zinc-800 text-[#6E6E73] dark:text-zinc-500' : 'bg-indigo-500 text-white active:scale-[0.98]'}`}
                   >
@@ -1104,6 +1231,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                   <button 
                     onClick={() => {
                       setSavedPhrases([...(savedPhrases || []), { ...selectedPhrase, timestamp: Date.now() }]);
+                      recordMasteredWord();
                     }}
                     className="w-full py-4 rounded-xl bg-emerald-500 text-white font-medium flex items-center justify-center active:scale-[0.98] transition-transform"
                   >
@@ -1487,37 +1615,191 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
 }
 
 // --- Profile View ---
-function ProfileView({ level, setLevel, stats, savedCount, setSavedVocab, setSavedPhrases, setStats, isDarkMode, setIsDarkMode }: any) {
+// --- Profile View Components ---
+function ContributionGraph({ dailyStats }: { dailyStats: Record<string, { wordCount: number, masteredWords: number }> }) {
+  const today = new Date();
+  // 计算最近 4 周的起始日（从 3 周前的周一开始，确保对齐）
+  const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday...
+  const daysToMonday = (currentDay === 0 ? 6 : currentDay - 1);
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - daysToMonday - 21); // 回退到 3 周前的周一
+
+  const days = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    return d.toISOString().split('T')[0];
+  });
+
+  const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
+
+  const getLevel = (count: number) => {
+    if (count === 0) return 'bg-zinc-100 dark:bg-zinc-800/50';
+    if (count < 200) return 'bg-emerald-200 dark:bg-emerald-900/30';
+    if (count < 500) return 'bg-emerald-400 dark:bg-emerald-700/50';
+    if (count < 1000) return 'bg-emerald-500 dark:bg-emerald-500/70';
+    return 'bg-emerald-600 dark:bg-emerald-400';
+  };
+
+  return (
+    <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider flex items-center">
+          <Calendar className="w-3 h-3 mr-1.5" /> 赛博草坪 (最近4周)
+        </h3>
+        <div className="flex items-center space-x-1">
+          <div className="w-2 h-2 rounded-sm bg-zinc-100 dark:bg-zinc-800/50"></div>
+          <div className="w-2 h-2 rounded-sm bg-emerald-600 dark:bg-emerald-400"></div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1.5 mb-1">
+        {weekDays.map(d => (
+          <div key={d} className="text-[8px] text-[#6E6E73] dark:text-zinc-500 text-center font-bold">{d}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1.5">
+        {days.map(day => {
+          const stats = dailyStats[day] || { wordCount: 0 };
+          const isToday = day === today.toISOString().split('T')[0];
+          return (
+            <div 
+              key={day} 
+              className={`aspect-square rounded-sm ${getLevel(stats.wordCount)} transition-colors relative group ${isToday ? 'ring-1 ring-indigo-400 ring-offset-1 dark:ring-offset-zinc-900' : ''}`}
+            >
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                {day}: {stats.wordCount} 字
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HistoryList({ history, onHistoryItemClick, onDeleteHistory }: { history: any[], onHistoryItemClick: (item: any) => void, onDeleteHistory: (id: number) => void }) {
+  if (history.length === 0) {
+    return (
+      <div className="text-center py-10 bg-white/40 dark:bg-zinc-900/40 rounded-2xl border border-dashed border-black/10 dark:border-white/10">
+        <History className="w-8 h-8 mx-auto mb-2 opacity-20 text-[#6E6E73] dark:text-zinc-500" />
+        <p className="text-xs text-[#6E6E73] dark:text-zinc-500">还没有阅读历史哦</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <AnimatePresence>
+        {history.map((item) => (
+          <motion.div 
+            key={item.id}
+            layout
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative group"
+          >
+            <button 
+              onClick={() => onHistoryItemClick(item)}
+              className="w-full text-left bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 pr-12 border border-black/5 dark:border-white/5 hover:bg-white dark:hover:bg-zinc-800 transition-all active:scale-[0.98]"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                  {item.level}
+                </span>
+                <span className="text-[10px] text-[#6E6E73] dark:text-zinc-500 flex items-center">
+                  <Clock className="w-3 h-3 mr-1" /> {new Date(item.timestamp).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="text-sm text-[#1D1D1F] dark:text-zinc-200 line-clamp-2 leading-relaxed mb-2 font-serif italic">
+                "{item.text}"
+              </p>
+              <div className="flex items-center text-[10px] text-[#6E6E73] dark:text-zinc-500">
+                <BarChart2 className="w-3 h-3 mr-1" /> {item.wordCount} 词
+              </div>
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDeleteHistory(item.id); }}
+              className="absolute top-1/2 -translate-y-1/2 right-4 p-2 text-[#6E6E73] dark:text-zinc-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 active:scale-90"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ProfileView({ 
+  level, 
+  setLevel, 
+  stats, 
+  savedCount, 
+  setSavedVocab, 
+  setSavedPhrases, 
+  setStats, 
+  isDarkMode, 
+  setIsDarkMode,
+  history,
+  setHistory,
+  dailyStats,
+  setDailyStats,
+  onHistoryItemClick
+}: any) {
   const handleClear = () => {
     if (window.confirm('确定要清除所有学习数据和生词本吗？此操作不可恢复。')) {
       setSavedVocab([]);
       setSavedPhrases([]);
       setStats({ learnedCount: 0 });
+      setHistory([]);
+      setDailyStats({});
       setLevel('四级');
     }
   };
 
+  const totalWords = Object.values(dailyStats as Record<string, { wordCount: number }>).reduce((acc, curr) => acc + curr.wordCount, 0);
+
   return (
-    <div className="px-5 pt-12 pb-6 max-w-md mx-auto">
+    <div className="px-5 pt-12 pb-24 max-w-md mx-auto">
       <header className="mb-8">
         <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-zinc-100 flex items-center"><span className="mr-2">🐱</span> 我的</h1>
       </header>
       
-      <div className="space-y-6">
+      <div className="space-y-8">
+        {/* Stats Grid */}
         <section>
           <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">学习统计</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
-              <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">累计学习</div>
-              <div className="text-2xl font-bold text-indigo-400">{stats.learnedCount} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">次</span></div>
+              <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">累计阅读</div>
+              <div className="text-2xl font-bold text-indigo-400">{totalWords.toLocaleString()} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">词</span></div>
             </div>
             <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
               <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">收藏生词</div>
               <div className="text-2xl font-bold text-purple-400">{savedCount} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">个</span></div>
             </div>
           </div>
+          
+          {/* Cyber Grassland */}
+          <ContributionGraph dailyStats={dailyStats} />
         </section>
 
+        {/* History */}
+        <section>
+          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+            <span>阅读历史</span>
+            <span className="text-[10px] font-normal normal-case">最近 50 条</span>
+          </h2>
+          <HistoryList 
+            history={history} 
+            onHistoryItemClick={onHistoryItemClick} 
+            onDeleteHistory={(id) => setHistory((prev: any[]) => prev.filter(h => h.id !== id))}
+          />
+        </section>
+
+        {/* Settings */}
         <section>
           <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">设置</h2>
           <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl border border-black/5 dark:border-white/5 overflow-hidden transition-colors duration-300">
@@ -1547,6 +1829,13 @@ function ProfileView({ level, setLevel, stats, savedCount, setSavedVocab, setSav
               <span className="text-red-400 text-sm">清除所有数据</span>
               <Trash2 className="w-4 h-4 text-red-400/50" />
             </button>
+          </div>
+          
+          <div className="mt-6 flex items-start space-x-2 px-2">
+            <Info className="w-3.5 h-3.5 text-[#6E6E73] dark:text-zinc-500 mt-0.5 shrink-0" />
+            <p className="text-[10px] text-[#6E6E73] dark:text-zinc-500 leading-relaxed">
+              学习进度仅保存在当前设备。清除浏览器缓存会导致进度重置喔。
+            </p>
           </div>
         </section>
       </div>
