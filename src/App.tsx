@@ -359,6 +359,11 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
         >
           <div className="text-5xl mb-6">QAQ</div>
           <h3 className="text-xl font-bold mb-3 text-[#1D1D1F] dark:text-zinc-100">哎呀，生成失败了...</h3>
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-xl p-3 mb-6">
+            <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed font-medium">
+              {error}
+            </p>
+          </div>
           <p className="text-sm text-[#6E6E73] dark:text-zinc-400 mb-8 leading-relaxed">
             可能是 AI 酱刚才走神了，或者是网络小精灵在捣乱。<br />
             如果是第一次使用，<span className="text-indigo-500 font-bold">刷新一下页面</span>通常就能好哦！

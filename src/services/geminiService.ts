@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const apiKey = ((import.meta as any).env.VITE_GEMINI_API_KEY as string) || "";
+const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY || "";
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
 function parseJSON(text: string) {
@@ -52,6 +52,10 @@ export async function generateLesson(level: string, text: string) {
     throw new Error("输入内容太短，请提供更丰富的内容（建议50字以上）");
   }
 
+  if (!apiKey) {
+    throw new Error("API Key 未配置，请检查环境设置。");
+  }
+
   const prompt = `Your task is to process this text for an English learning app.
 CRITICAL RULES:
 1. DO NOT rewrite, expand, or summarize the original text. The original meaning must remain exactly the same.
@@ -83,7 +87,9 @@ Return the result as a JSON object.`;
     try {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `The user has provided the following text: "${text}".\n\n${prompt}`,
+        contents: [
+          { role: "user", parts: [{ text: `The user has provided the following text: "${text}"\n\n${prompt}` }] }
+        ],
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -215,10 +221,16 @@ Return the result as a JSON object.`;
     }
   }
 
-  if (lastError?.message?.includes("API key not valid")) {
+  const errorMsg = lastError?.message || "";
+  if (errorMsg.includes("API key not valid")) {
     throw new Error("API Key 权限验证失败，请检查 Google Cloud 的域名限制设置。");
+  } else if (errorMsg.includes("User location is not supported")) {
+    throw new Error("抱歉，您所在的地区暂时无法使用 AI 服务。");
+  } else if (errorMsg.includes("quota")) {
+    throw new Error("AI 酱今天太累了（配额用尽），请稍后再试。");
   }
-  throw new Error("内容生成超时或失败，请尝试缩短输入内容或稍后重试。");
+  
+  throw new Error(lastError?.message || "内容生成超时或失败，请尝试缩短输入内容或稍后重试。");
 }
 
 export async function lookupWord(word: string, contextSentence: string) {
@@ -229,7 +241,7 @@ Return the result as a JSON object.`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: prompt,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
       responseMimeType: "application/json",
       responseSchema: {
