@@ -117,7 +117,7 @@ export default function App() {
   const [savedVocab, setSavedVocab] = useLocalStorage<VocabItem[]>('contextlearn_vocab', []);
   const [savedPhrases, setSavedPhrases] = useLocalStorage<PhraseItem[]>('contextlearn_phrases', []);
   const [stats, setStats] = useLocalStorage('contextlearn_stats', { learnedCount: 0 });
-  const [isDarkMode, setIsDarkMode] = useLocalStorage('contextlearn_dark_mode', true);
+  const [isDarkMode, setIsDarkMode] = useLocalStorage('contextlearn_dark_mode', false);
   const [lessonData, setLessonData] = useState<any>(null);
   const [currentText, setCurrentText] = useState('');
 
@@ -280,20 +280,26 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
 
   const loadingMessages = [
-    "AI 酱正在努力翻译中...",
-    "正在为你挑选最地道的表达...",
-    "正在分析语法结构，请稍等哦...",
-    "正在把你的文字变成精美的小说...",
-    "网络小精灵正在搬运数据...",
-    "快好了，再等一下下嘛...",
+    "电子羊也会梦见赛博草原吗？🐑",
+    "正在向赛博空间申请翻译许可... 🛰️",
+    "正在给 AI 酱补充一点赛博能量... 🔋",
+    "AI 酱正在翻阅她的赛博词典... 📖",
+    "正在把单词一个个排好队，准备出发！🚶",
+    "AI 酱正在努力思考，脑门都要冒烟啦... 💨",
+    "正在捕捉野生的地道表达中... 🦋",
+    "正在用代码为你编织一段梦境... 🕸️",
+    "翻译小精灵正在后台疯狂打字中... ⌨️",
+    "趁现在，去喝口水休息一下吧？🥤",
+    "进度条君正在努力奔跑，加油呀！🏃",
+    "AI 酱说她已经准备好惊艳你了！✨",
   ];
 
   useEffect(() => {
     const msgTimer = setInterval(() => {
       setLoadingMsgIndex(prev => (prev + 1) % loadingMessages.length);
-    }, 3000);
+    }, 3500);
     return () => clearInterval(msgTimer);
-  }, []);
+  }, [loadingMessages.length]);
 
   useEffect(() => {
     let isMounted = true;
@@ -413,14 +419,17 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
         
         {!lessonData?.previewWords && (
           <div className="flex flex-col items-center justify-center py-20 text-[#6E6E73] dark:text-zinc-500">
-            <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
+            <div className="relative mb-6">
+              <Loader2 className="w-10 h-10 animate-spin text-indigo-500" />
+              <Sparkles className="w-4 h-4 text-indigo-300 absolute -top-1 -right-1 animate-pulse" />
+            </div>
             <AnimatePresence mode="wait">
               <motion.p 
                 key={loadingMsgIndex}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
-                className="text-sm"
+                className="text-sm text-center px-10 leading-relaxed"
               >
                 {loadingMessages[loadingMsgIndex]}
               </motion.p>
@@ -439,9 +448,8 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <div className="text-center text-sm text-[#1D1D1F] dark:text-zinc-400 flex items-center justify-center">
-                <Sparkles className="w-4 h-4 mr-2 text-indigo-400 animate-pulse" />
-                ✨ {loadingMessages[loadingMsgIndex]} {Math.round(progress)}%
+              <div className="text-center text-xs font-medium text-[#6E6E73] dark:text-zinc-500 flex items-center justify-center tracking-widest uppercase">
+                ✨ 正在生成... {Math.round(progress)}%
               </div>
             </div>
           ) : (
@@ -479,7 +487,6 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
     </div>
   );
 }
-
 // --- Reading View ---
 function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSavedPhrases, lessonData }: { onBack: () => void, savedVocab: VocabItem[], setSavedVocab: any, savedPhrases: PhraseItem[], setSavedPhrases: any, lessonData: any }) {
   const [mode, setMode] = useState<'en' | 'bilingual'>('en');
@@ -745,7 +752,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
               className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-black/10 dark:border-white/10 rounded-t-3xl z-50 max-w-md mx-auto pb-safe max-h-[85vh] flex flex-col"
             >
               {/* Drag Handle */}
-              <div 
+              <motion.div 
                 className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"
                 drag="y"
                 dragConstraints={{ top: 0 }}
@@ -755,7 +762,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                 }}
               >
                 <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full opacity-50"></div>
-              </div>
+              </motion.div>
               
               <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide">
                 <div className="flex justify-between items-start mb-6">
@@ -934,7 +941,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
               className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-black/10 dark:border-white/10 rounded-t-3xl z-50 max-w-md mx-auto pb-safe max-h-[85vh] flex flex-col"
             >
               {/* Drag Handle */}
-              <div 
+              <motion.div 
                 className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"
                 drag="y"
                 dragConstraints={{ top: 0 }}
@@ -944,7 +951,7 @@ function ReadingView({ onBack, savedVocab, setSavedVocab, savedPhrases, setSaved
                 }}
               >
                 <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full opacity-50"></div>
-              </div>
+              </motion.div>
 
               <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide">
                 <div className="flex justify-between items-start mb-6">
