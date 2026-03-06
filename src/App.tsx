@@ -277,11 +277,27 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
   const [isDone, setIsDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [waitingForReading, setWaitingForReading] = useState(false);
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+
+  const loadingMessages = [
+    "AI 酱正在努力翻译中...",
+    "正在为你挑选最地道的表达...",
+    "正在分析语法结构，请稍等哦...",
+    "正在把你的文字变成精美的小说...",
+    "网络小精灵正在搬运数据...",
+    "快好了，再等一下下嘛...",
+  ];
+
+  useEffect(() => {
+    const msgTimer = setInterval(() => {
+      setLoadingMsgIndex(prev => (prev + 1) % loadingMessages.length);
+    }, 3000);
+    return () => clearInterval(msgTimer);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
     
-    // Only fetch if lessonData is null (which it is on mount)
     if (!lessonData) {
       const fetchLesson = async () => {
         try {
@@ -291,15 +307,14 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
             setIsDone(true);
             setProgress(100);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error(err);
-          if (isMounted) setError("生成失败，请重试");
+          if (isMounted) setError(err.message || "生成失败了 QAQ");
         }
       };
 
       fetchLesson();
       
-      // Fake progress bar while waiting for vocab
       const timer = setInterval(() => {
         setProgress(p => {
           if (p >= 90) return p;
@@ -312,15 +327,13 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
         clearInterval(timer);
       };
     } else {
-      // If lessonData already exists (e.g. navigating back), just show it
       if (lessonData.previewWords) {
         setIsDone(true);
         setProgress(100);
       }
     }
-  }, [level, text]); // Removed lessonData and setLessonData from dependencies to prevent re-running when readingPromise resolves first
+  }, [level, text]);
 
-  // Handle auto-proceed if user clicked "Start Reading" while waiting
   useEffect(() => {
     if (waitingForReading && lessonData?.isReadingReady) {
       onComplete();
@@ -329,9 +342,33 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-5 max-w-md mx-auto">
-        <div className="text-red-400 mb-4">{error}</div>
-        <button onClick={onBack} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[#1D1D1F] dark:text-zinc-100">返回重试</button>
+      <div className="min-h-screen flex flex-col items-center justify-center px-5 max-w-md mx-auto text-center">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }} 
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white/80 dark:bg-zinc-900/80 p-8 rounded-3xl border border-black/5 dark:border-white/5 shadow-2xl"
+        >
+          <div className="text-5xl mb-6">QAQ</div>
+          <h3 className="text-xl font-bold mb-3 text-[#1D1D1F] dark:text-zinc-100">哎呀，生成失败了...</h3>
+          <p className="text-sm text-[#6E6E73] dark:text-zinc-400 mb-8 leading-relaxed">
+            可能是 AI 酱刚才走神了，或者是网络小精灵在捣乱。<br />
+            如果是第一次使用，<span className="text-indigo-500 font-bold">刷新一下页面</span>通常就能好哦！
+          </p>
+          <div className="flex flex-col space-y-3">
+            <button 
+              onClick={() => window.location.reload()} 
+              className="w-full py-4 bg-indigo-500 text-white rounded-2xl font-bold shadow-lg shadow-indigo-500/25 active:scale-95 transition-transform flex items-center justify-center"
+            >
+              刷新页面试试
+            </button>
+            <button 
+              onClick={onBack} 
+              className="w-full py-4 bg-zinc-100 dark:bg-zinc-800 text-[#6E6E73] dark:text-zinc-400 rounded-2xl font-medium active:scale-95 transition-transform"
+            >
+              返回修改内容
+            </button>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -358,7 +395,7 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
             key={i}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.2 }}
+            transition={{ delay: i * 0.1 }}
             className="bg-white/60 dark:bg-zinc-900/60 border border-black/5 dark:border-white/5 rounded-2xl p-4 shadow-lg"
           >
             <div className="flex items-baseline space-x-2 mb-2">
@@ -377,7 +414,17 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
         {!lessonData?.previewWords && (
           <div className="flex flex-col items-center justify-center py-20 text-[#6E6E73] dark:text-zinc-500">
             <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
-            <p className="text-sm">AI 正在生成文章和词汇...</p>
+            <AnimatePresence mode="wait">
+              <motion.p 
+                key={loadingMsgIndex}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="text-sm"
+              >
+                {loadingMessages[loadingMsgIndex]}
+              </motion.p>
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -394,7 +441,7 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
               </div>
               <div className="text-center text-sm text-[#1D1D1F] dark:text-zinc-400 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 mr-2 text-indigo-400 animate-pulse" />
-                ✨ 译文生成中... {Math.round(progress)}%
+                ✨ {loadingMessages[loadingMsgIndex]} {Math.round(progress)}%
               </div>
             </div>
           ) : (
