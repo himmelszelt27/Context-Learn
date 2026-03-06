@@ -60,7 +60,7 @@ async function generateLessonWithGroq(level: string, text: string, prompt: strin
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: "moonshotai/kimi-k2-instruct-0905",
       messages: [
         { role: "system", content: "You are a helpful assistant that outputs JSON." },
         { role: "user", content: `The user has provided the following text: "${text}"\n\n${prompt}` }
