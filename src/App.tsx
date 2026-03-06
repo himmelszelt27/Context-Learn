@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Bookmark, User, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { BookOpen, Bookmark, Cat, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { generateLesson, lookupWord } from './services/geminiService';
 
 const LEVELS = ['高中', '四级', '六级', '考研', '专四', '专八', '雅思托福'];
@@ -169,7 +169,7 @@ export default function App() {
             <div className="flex justify-around items-center h-16 px-4 max-w-md mx-auto">
               <NavItem icon={<BookOpen className="w-5 h-5" />} label="首页" isActive={activeTab === 'home'} onClick={() => setActiveTab('home')} />
               <NavItem icon={<Bookmark className="w-5 h-5" />} label="生词本" isActive={activeTab === 'vocab'} onClick={() => setActiveTab('vocab')} />
-              <NavItem icon={<User className="w-5 h-5" />} label="我的" isActive={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
+              <NavItem icon={<Cat className="w-5 h-5" />} label="我的" isActive={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
             </div>
           </motion.nav>
         )}
@@ -195,7 +195,7 @@ function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode, la
 // --- Home View ---
 function HomeView({ level, setLevel, onStart }: { level: string, setLevel: (l: string) => void, onStart: (text: string) => void }) {
   const [text, setText] = useState('');
-  const MAX_CHARS = 1500;
+  const MAX_CHARS = 1000;
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -244,7 +244,7 @@ function HomeView({ level, setLevel, onStart }: { level: string, setLevel: (l: s
             <textarea
               value={text}
               onChange={handleTextChange}
-              placeholder="在这里粘贴你想学的中文内容，建议500-1500字，比如一段小说、一篇文章..."
+              placeholder="在这里粘贴你想学的中文内容，建议150-1000字，比如一段小说、一篇文章..."
               className="relative w-full h-48 bg-white/80 dark:bg-zinc-900/80 border border-black/10 dark:border-white/10 rounded-2xl p-4 text-[#1D1D1F] dark:text-zinc-100 placeholder:text-[#8E8E93] dark:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 resize-none leading-relaxed shadow-inner text-sm"
             />
           </div>
@@ -291,6 +291,9 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
     "翻译小精灵正在后台疯狂打字中... ⌨️",
     "趁现在，去喝口水休息一下吧？🥤",
     "进度条君正在努力奔跑，加油呀！🏃",
+    "正在把复杂的单词揉成甜甜的棉花糖... ☁️",
+    "正在给赛博小猫顺毛，它一开心就翻译好了... 🐱",
+    "AI 酱正在深呼吸，准备为你展示最完美的翻译... 🌬️",
     "AI 酱说她已经准备好惊艳你了！✨",
   ];
 
@@ -1468,7 +1471,7 @@ function ProfileView({ level, setLevel, stats, savedCount, setSavedVocab, setSav
   return (
     <div className="px-5 pt-12 pb-6 max-w-md mx-auto">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-zinc-100 flex items-center"><span className="mr-2">👤</span> 我的</h1>
+        <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-zinc-100 flex items-center"><span className="mr-2">🐱</span> 我的</h1>
       </header>
       
       <div className="space-y-6">
