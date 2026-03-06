@@ -310,8 +310,32 @@ function PreviewView({ level, text, onComplete, onBack, lessonData, setLessonDat
     if (!lessonData) {
       const fetchLesson = async () => {
         try {
+          // 1. 尝试从缓存读取
+          const cacheKey = `lesson_${level}_${text.substring(0, 50)}_${text.length}`;
+          const cachedData = localStorage.getItem(cacheKey);
+          
+          if (cachedData) {
+            console.log("Loading from cache...");
+            const parsedCache = JSON.parse(cachedData);
+            if (isMounted) {
+              setLessonData(parsedCache);
+              setIsDone(true);
+              setProgress(100);
+            }
+            return;
+          }
+
+          // 2. 如果没缓存，调用 API
           const lesson = await generateLesson(level, text);
+          
           if (isMounted) {
+            // 存入缓存
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify(lesson));
+            } catch (e) {
+              console.warn("Failed to save to cache (possibly quota exceeded)", e);
+            }
+            
             setLessonData(lesson);
             setIsDone(true);
             setProgress(100);
