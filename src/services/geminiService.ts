@@ -48,10 +48,140 @@ function parseJSON(text: string) {
   }
 }
 
-async function generateLessonWithGroq(level: string, text: string, prompt: string) {
-  if (!groqApiKey) {
-    throw new Error("Groq API Key 未配置。");
-  }
+async function callGemini(modelId: string, level: string, text: string, prompt: string) {
+  if (!apiKey) throw new Error("Gemini API Key 未配置");
+  
+  const response = await ai.models.generateContent({
+    model: modelId,
+    contents: [
+      { role: "user", parts: [{ text: `The user has provided the following text: "${text}"\n\n${prompt}` }] }
+    ],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          paragraphs: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                english: { type: Type.STRING },
+                chinese: { type: Type.STRING },
+              },
+              required: ["english", "chinese"],
+            },
+          },
+          previewWords: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                word: { type: Type.STRING, description: "EXACT string as it appears in the English text" },
+                lemma: { type: Type.STRING, description: "base form of the word" },
+                phonetic: { type: Type.STRING },
+                partOfSpeech: { type: Type.STRING },
+                meaning: { type: Type.STRING, description: "Short Chinese meaning for preview" },
+                exampleEn: { type: Type.STRING, description: "Bilingual example sentence (English)" },
+                exampleCn: { type: Type.STRING, description: "Bilingual example sentence (Chinese)" },
+                definitions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.INTEGER },
+                      meaning: { type: Type.STRING, description: "English meaning" },
+                      meaningCn: { type: Type.STRING, description: "Chinese meaning" },
+                      scenario: { type: Type.STRING, description: "English scenario" },
+                      scenarioCn: { type: Type.STRING, description: "Chinese scenario" },
+                    },
+                    required: ["id", "meaning", "meaningCn", "scenario", "scenarioCn"],
+                  },
+                  description: "list 2-3 common meanings, including the context meaning",
+                },
+                contextIndex: { type: Type.INTEGER, description: "the id of the definition that matches the context" },
+                contextExplanation: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in English)" },
+                contextExplanationCn: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in Chinese)" },
+                collocations: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      en: { type: Type.STRING, description: "collocation in English" },
+                      cn: { type: Type.STRING, description: "collocation translated to Chinese" }
+                    },
+                    required: ["en", "cn"]
+                  },
+                  description: "2-3 common collocations or phrases using this word",
+                },
+              },
+              required: ["word", "lemma", "phonetic", "partOfSpeech", "meaning", "exampleEn", "exampleCn", "definitions", "contextIndex", "contextExplanation", "contextExplanationCn", "collocations"],
+            },
+          },
+          phrases: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                phrase: { type: Type.STRING, description: "EXACT string as it appears in the English text" },
+                contextMeaningEn: { type: Type.STRING, description: "Contextual meaning in English" },
+                contextMeaningCn: { type: Type.STRING, description: "Contextual meaning in Chinese" },
+                commonMeaningEn: { type: Type.STRING, description: "Common/general meaning in English" },
+                commonMeaningCn: { type: Type.STRING, description: "Common/general meaning in Chinese" },
+                contextTags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "1-2 tags like '正式', '口语', '职场'" },
+                sourceText: { type: Type.STRING },
+                synonyms: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      word: { type: Type.STRING },
+                      meaning: { type: Type.STRING },
+                    },
+                    required: ["word", "meaning"],
+                  },
+                },
+              },
+              required: ["phrase", "contextMeaningEn", "contextMeaningCn", "commonMeaningEn", "commonMeaningCn", "sourceText", "synonyms"],
+            },
+          },
+          grammar: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                pattern: { type: Type.STRING },
+                patternCn: { type: Type.STRING },
+                explanation: { type: Type.STRING },
+                explanationCn: { type: Type.STRING },
+                originalSentence: { type: Type.STRING },
+                originalSentenceCn: { type: Type.STRING },
+                exampleSentence: { type: Type.STRING },
+                exampleSentenceCn: { type: Type.STRING },
+              },
+              required: ["pattern", "patternCn", "explanation", "explanationCn", "originalSentence", "originalSentenceCn", "exampleSentence", "exampleSentenceCn"],
+            },
+          },
+        },
+        required: ["paragraphs", "previewWords", "phrases", "grammar"],
+      },
+    },
+  });
+
+  const responseText = response.text || "{}";
+  const data = parseJSON(responseText);
+  
+  return {
+    paragraphs: data.paragraphs || data.paragraph || (Array.isArray(data) ? data : []),
+    previewWords: data.previewWords || data.words || data.vocabulary || [],
+    phrases: data.phrases || data.phrase || [],
+    grammar: data.grammar || data.grammars || [],
+    isReadingReady: true
+  };
+}
+
+async function callGroq(modelId: string, level: string, text: string, prompt: string) {
+  if (!groqApiKey) throw new Error("Groq API Key 未配置");
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -60,7 +190,7 @@ async function generateLessonWithGroq(level: string, text: string, prompt: strin
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "moonshotai/kimi-k2-instruct-0905",
+      model: modelId,
       messages: [
         { role: "system", content: "You are a helpful assistant that outputs JSON." },
         { role: "user", content: `The user has provided the following text: "${text}"\n\n${prompt}` }
@@ -72,7 +202,7 @@ async function generateLessonWithGroq(level: string, text: string, prompt: strin
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(`Groq API Error: ${errorData.error?.message || response.statusText}`);
+    throw new Error(`Groq API Error (${modelId}): ${errorData.error?.message || response.statusText}`);
   }
 
   const data = await response.json();
@@ -91,10 +221,6 @@ async function generateLessonWithGroq(level: string, text: string, prompt: strin
 export async function generateLesson(level: string, text: string) {
   if (!text || text.trim().length < 10) {
     throw new Error("输入内容太短，请提供更丰富的内容（建议50字以上）");
-  }
-
-  if (!apiKey) {
-    throw new Error("API Key 未配置，请检查环境设置。");
   }
 
   const prompt = `Your task is to process this text for an English learning app.
@@ -122,158 +248,31 @@ Provide the following:
 
 Return the result as a JSON object.`;
 
-  // 自动重试逻辑：尝试 Gemini，失败则尝试 Groq
+  const modelsPriority = [
+    { provider: 'gemini', id: 'gemini-3-flash-preview' },
+    { provider: 'gemini', id: 'gemini-2.5-flash' },
+    { provider: 'groq', id: 'llama-4-scout' },
+    { provider: 'groq', id: 'gpt-oss-120b' },
+    { provider: 'groq', id: 'llama-3.3-70b-versatile' },
+    { provider: 'groq', id: 'kimi-k2' },
+    { provider: 'groq', id: 'gpt-oss-20b' },
+    { provider: 'gemini', id: 'gemini-1.5-flash' },
+  ];
+
   let lastError = null;
-  
-  // 尝试 Gemini
-  if (apiKey) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: [
-            { role: "user", parts: [{ text: `The user has provided the following text: "${text}"\n\n${prompt}` }] }
-          ],
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                paragraphs: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      english: { type: Type.STRING },
-                      chinese: { type: Type.STRING },
-                    },
-                    required: ["english", "chinese"],
-                  },
-                },
-                previewWords: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      word: { type: Type.STRING, description: "EXACT string as it appears in the English text" },
-                      lemma: { type: Type.STRING, description: "base form of the word" },
-                      phonetic: { type: Type.STRING },
-                      partOfSpeech: { type: Type.STRING },
-                      meaning: { type: Type.STRING, description: "Short Chinese meaning for preview" },
-                      exampleEn: { type: Type.STRING, description: "Bilingual example sentence (English)" },
-                      exampleCn: { type: Type.STRING, description: "Bilingual example sentence (Chinese)" },
-                      definitions: {
-                        type: Type.ARRAY,
-                        items: {
-                          type: Type.OBJECT,
-                          properties: {
-                            id: { type: Type.INTEGER },
-                            meaning: { type: Type.STRING, description: "English meaning" },
-                            meaningCn: { type: Type.STRING, description: "Chinese meaning" },
-                            scenario: { type: Type.STRING, description: "English scenario" },
-                            scenarioCn: { type: Type.STRING, description: "Chinese scenario" },
-                          },
-                          required: ["id", "meaning", "meaningCn", "scenario", "scenarioCn"],
-                        },
-                        description: "list 2-3 common meanings, including the context meaning",
-                      },
-                      contextIndex: { type: Type.INTEGER, description: "the id of the definition that matches the context" },
-                      contextExplanation: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in English)" },
-                      contextExplanationCn: { type: Type.STRING, description: "explain how the word is used in this specific sentence (in Chinese)" },
-                      collocations: {
-                        type: Type.ARRAY,
-                        items: {
-                          type: Type.OBJECT,
-                          properties: {
-                            en: { type: Type.STRING, description: "collocation in English" },
-                            cn: { type: Type.STRING, description: "collocation translated to Chinese" }
-                          },
-                          required: ["en", "cn"]
-                        },
-                        description: "2-3 common collocations or phrases using this word",
-                      },
-                    },
-                    required: ["word", "lemma", "phonetic", "partOfSpeech", "meaning", "exampleEn", "exampleCn", "definitions", "contextIndex", "contextExplanation", "contextExplanationCn", "collocations"],
-                  },
-                },
-                phrases: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      phrase: { type: Type.STRING, description: "EXACT string as it appears in the English text" },
-                      contextMeaningEn: { type: Type.STRING, description: "Contextual meaning in English" },
-                      contextMeaningCn: { type: Type.STRING, description: "Contextual meaning in Chinese" },
-                      commonMeaningEn: { type: Type.STRING, description: "Common/general meaning in English" },
-                      commonMeaningCn: { type: Type.STRING, description: "Common/general meaning in Chinese" },
-                      contextTags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "1-2 tags like '正式', '口语', '职场'" },
-                      sourceText: { type: Type.STRING },
-                      synonyms: {
-                        type: Type.ARRAY,
-                        items: {
-                          type: Type.OBJECT,
-                          properties: {
-                            word: { type: Type.STRING },
-                            meaning: { type: Type.STRING },
-                          },
-                          required: ["word", "meaning"],
-                        },
-                      },
-                    },
-                    required: ["phrase", "contextMeaningEn", "contextMeaningCn", "commonMeaningEn", "commonMeaningCn", "sourceText", "synonyms"],
-                  },
-                },
-                grammar: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      pattern: { type: Type.STRING },
-                      patternCn: { type: Type.STRING },
-                      explanation: { type: Type.STRING },
-                      explanationCn: { type: Type.STRING },
-                      originalSentence: { type: Type.STRING },
-                      originalSentenceCn: { type: Type.STRING },
-                      exampleSentence: { type: Type.STRING },
-                      exampleSentenceCn: { type: Type.STRING },
-                    },
-                    required: ["pattern", "patternCn", "explanation", "explanationCn", "originalSentence", "originalSentenceCn", "exampleSentence", "exampleSentenceCn"],
-                  },
-                },
-              },
-              required: ["paragraphs", "previewWords", "phrases", "grammar"],
-            },
-          },
-        });
 
-        const responseText = response.text || "{}";
-        const data = parseJSON(responseText);
-        
-        return {
-          paragraphs: data.paragraphs || data.paragraph || (Array.isArray(data) ? data : []),
-          previewWords: data.previewWords || data.words || data.vocabulary || [],
-          phrases: data.phrases || data.phrase || [],
-          grammar: data.grammar || data.grammars || [],
-          isReadingReady: true
-        };
-      } catch (err: any) {
-        console.error(`Gemini Attempt ${attempt} failed:`, err);
-        lastError = err;
-        if (attempt < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    }
-  }
-
-  // 如果 Gemini 失败且有 Groq Key，则尝试 Groq
-  if (groqApiKey) {
+  for (const model of modelsPriority) {
     try {
-      console.log("Gemini failed or unavailable, falling back to Groq...");
-      return await generateLessonWithGroq(level, text, prompt);
+      console.log(`Attempting to generate lesson with ${model.provider}:${model.id}...`);
+      if (model.provider === 'gemini') {
+        return await callGemini(model.id, level, text, prompt);
+      } else {
+        return await callGroq(model.id, level, text, prompt);
+      }
     } catch (err: any) {
-      console.error("Groq fallback failed:", err);
+      console.warn(`${model.provider}:${model.id} failed:`, err.message);
       lastError = err;
+      // Continue to next model
     }
   }
 
@@ -283,7 +282,7 @@ Return the result as a JSON object.`;
   } else if (errorMsg.includes("User location is not supported")) {
     throw new Error("抱歉，您所在的地区暂时无法使用 AI 服务。");
   } else if (errorMsg.includes("quota")) {
-    throw new Error("AI 酱今天太累了（配额用尽），请稍后再试。");
+    throw new Error("AI 酱们今天都太累了（配额全线用尽），请稍后再试。");
   }
   
   throw new Error(lastError?.message || "内容生成超时或失败，请尝试缩短输入内容或稍后重试。");
