@@ -412,7 +412,12 @@ function PreviewView({
 
       const recordActivity = (data: any) => {
         const today = new Date().toISOString().split('T')[0];
-        const wordCount = text.trim().split(/\s+/).length;
+        
+        // 计算生成的英文总词数，而不是输入文本的长度
+        const generatedWordCount = (data.paragraphs || []).reduce((acc: number, p: any) => {
+          const words = (p.english || "").trim().split(/\s+/).filter(Boolean).length;
+          return acc + words;
+        }, 0);
 
         // 更新历史记录
         setHistory((prev: any[]) => {
@@ -424,7 +429,7 @@ function PreviewView({
             level,
             timestamp: Date.now(),
             lessonData: data,
-            wordCount
+            wordCount: generatedWordCount
           }, ...prev].slice(0, 50); // 最多保留50条
         });
 
@@ -435,7 +440,7 @@ function PreviewView({
             ...prev,
             [today]: {
               ...current,
-              wordCount: current.wordCount + wordCount
+              wordCount: current.wordCount + generatedWordCount
             }
           };
         });
@@ -1632,23 +1637,36 @@ function ContributionGraph({ dailyStats }: { dailyStats: Record<string, { wordCo
 
   const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
 
-  const getLevel = (count: number) => {
+  const getAnimal = (count: number, day: string) => {
+    if (count === 0) return null;
+    
+    // 使用日期作为种子来选择固定的动物，这样刷新页面不会变
+    const seed = day.split('-').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const animals = ['🐱', '🐶', '🦊', '🐰', '🐼', '🐨', '🦁', '🐯', '🐸', '🐷'];
+    const animal = animals[seed % animals.length];
+
+    if (count < 200) return <span className="opacity-40 grayscale-[0.5]">{animal}</span>;
+    if (count < 500) return <span className="opacity-70">{animal}</span>;
+    if (count < 1000) return <span className="scale-110">{animal}</span>;
+    return <span className="scale-125 drop-shadow-md">{animal}</span>;
+  };
+
+  const getBgColor = (count: number) => {
     if (count === 0) return 'bg-zinc-100 dark:bg-zinc-800/50';
-    if (count < 200) return 'bg-emerald-200 dark:bg-emerald-900/30';
-    if (count < 500) return 'bg-emerald-400 dark:bg-emerald-700/50';
-    if (count < 1000) return 'bg-emerald-500 dark:bg-emerald-500/70';
-    return 'bg-emerald-600 dark:bg-emerald-400';
+    if (count < 200) return 'bg-emerald-100 dark:bg-emerald-900/20';
+    if (count < 500) return 'bg-emerald-200 dark:bg-emerald-800/30';
+    if (count < 1000) return 'bg-emerald-300 dark:bg-emerald-700/40';
+    return 'bg-emerald-400 dark:bg-emerald-600/50';
   };
 
   return (
     <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider flex items-center">
-          <Calendar className="w-3 h-3 mr-1.5" /> 赛博草坪 (最近4周)
+          <Calendar className="w-3 h-3 mr-1.5" /> 赛博动物园 (最近4周)
         </h3>
-        <div className="flex items-center space-x-1">
-          <div className="w-2 h-2 rounded-sm bg-zinc-100 dark:bg-zinc-800/50"></div>
-          <div className="w-2 h-2 rounded-sm bg-emerald-600 dark:bg-emerald-400"></div>
+        <div className="flex items-center space-x-1 text-[10px] text-[#6E6E73] dark:text-zinc-500">
+          <span>阅读解锁小动物</span>
         </div>
       </div>
       
@@ -1665,8 +1683,9 @@ function ContributionGraph({ dailyStats }: { dailyStats: Record<string, { wordCo
           return (
             <div 
               key={day} 
-              className={`aspect-square rounded-sm ${getLevel(stats.wordCount)} transition-colors relative group ${isToday ? 'ring-1 ring-indigo-400 ring-offset-1 dark:ring-offset-zinc-900' : ''}`}
+              className={`aspect-square rounded-lg ${getBgColor(stats.wordCount)} transition-all flex items-center justify-center text-sm relative group ${isToday ? 'ring-1 ring-indigo-400 ring-offset-1 dark:ring-offset-zinc-900' : ''}`}
             >
+              {getAnimal(stats.wordCount, day)}
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
                 {day}: {stats.wordCount} 字
               </div>
@@ -1773,8 +1792,8 @@ function ProfileView({
           <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">学习统计</h2>
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
-              <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">累计阅读</div>
-              <div className="text-2xl font-bold text-indigo-400">{totalWords.toLocaleString()} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">词</span></div>
+              <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">累计学习次数</div>
+              <div className="text-2xl font-bold text-indigo-400">{history.length} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">次</span></div>
             </div>
             <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
               <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">收藏生词</div>
