@@ -345,23 +345,44 @@ function PreviewView({
   const [waitingForReading, setWaitingForReading] = useState(false);
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
 
-  const loadingMessages = [
-    "电子羊也会梦见赛博草原吗？🐑",
-    "正在向赛博空间申请翻译许可... 🛰️",
-    "正在给 AI 酱补充一点赛博能量... 🔋",
-    "AI 酱正在翻阅她的赛博词典... 📖",
-    "正在把单词一个个排好队，准备出发！🚶",
-    "AI 酱正在努力思考，脑门都要冒烟啦... 💨",
-    "正在捕捉野生的地道表达中... 🦋",
-    "正在用代码为你编织一段梦境... 🕸️",
-    "翻译小精灵正在后台疯狂打字中... ⌨️",
-    "趁现在，去喝口水休息一下吧？🥤",
-    "进度条君正在努力奔跑，加油呀！🏃",
-    "正在把复杂的单词揉成甜甜的棉花糖... ☁️",
-    "正在给赛博小猫顺毛，它一开心就翻译好了... 🐱",
-    "AI 酱正在深呼吸，准备为你展示最完美的翻译... 🌬️",
-    "AI 酱说她已经准备好惊艳你了！✨",
-  ];
+  const loadingMessages = useMemo(() => {
+    const baseMessages = [
+      "电子羊也会梦见赛博草原吗？🐑",
+      "正在向赛博空间申请翻译许可... 🛰️",
+      "正在给 AI 酱补充一点赛博能量... 🔋",
+      "AI 酱正在翻阅她的赛博词典... 📖",
+      "正在把单词一个个排好队，准备出发！🚶",
+      "AI 酱正在努力思考，脑门都要冒烟啦... 💨",
+      "正在捕捉野生的地道表达中... 🦋",
+      "正在用代码为你编织一段梦境... 🕸️",
+      "翻译小精灵正在后台疯狂打字中... ⌨️",
+      "趁现在，去喝口水休息一下吧？🥤",
+      "进度条君正在努力奔跑，加油呀！🏃",
+      "正在把复杂的单词揉成甜甜的棉花糖... ☁️",
+      "正在给赛博小猫顺毛，它一开心就翻译好了... 🐱",
+      "AI 酱正在深呼吸，准备为你展示最完美的翻译... 🌬️",
+      "AI 酱说她已经准备好惊艳你了！✨",
+    ];
+
+    if (text.length > 500) {
+      const longTextMessages = [
+        "检测到信息量巨大！AI 酱正在开启‘疯狂工作模式’，慢工出细活嘛~ 🚀",
+        "正在跨越赛博数据海，搬运海量地道表达，请再给 AI 酱一点时间喵... 🌊",
+        "正在为你精心雕琢每一句翻译... 主人可以先闭目养神一会，好了我叫你！💤",
+        "正在为您校对每一处细节，好内容值得多等一会喵... ⏳"
+      ];
+      // Intersperse long text messages into the base ones
+      const combined = [...baseMessages];
+      // Insert at positions 3, 7, 11, 15 (roughly evenly spaced)
+      combined.splice(3, 0, longTextMessages[0]);
+      combined.splice(7, 0, longTextMessages[1]);
+      combined.splice(11, 0, longTextMessages[2]);
+      combined.splice(15, 0, longTextMessages[3]);
+      return combined;
+    }
+
+    return baseMessages;
+  }, [text.length]);
 
   useEffect(() => {
     const msgTimer = setInterval(() => {
@@ -1998,6 +2019,8 @@ function ProfileView({
   setDailyStats,
   onHistoryItemClick
 }: any) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
+
   const handleClear = () => {
     if (window.confirm('确定要清除所有学习数据和生词本吗？此操作不可恢复。')) {
       setSavedVocab([]);
@@ -2009,86 +2032,138 @@ function ProfileView({
     }
   };
 
-  const totalWords = Object.values(dailyStats as Record<string, { wordCount: number }>).reduce((acc, curr) => acc + curr.wordCount, 0);
-
   return (
     <div className="px-5 pt-12 pb-24 max-w-md mx-auto">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-zinc-100 flex items-center"><span className="mr-2">🐱</span> 我的</h1>
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-zinc-100 flex items-center mb-6">
+          <span className="mr-2">🐱</span> 我的
+        </h1>
+
+        {/* Tab Switcher */}
+        <div className="bg-black/5 dark:bg-white/5 p-1 rounded-xl flex relative">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all duration-300 relative z-10 ${
+              activeTab === 'overview' 
+                ? 'text-[#1D1D1F] dark:text-white' 
+                : 'text-[#6E6E73] dark:text-zinc-500'
+            }`}
+          >
+            概览
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all duration-300 relative z-10 ${
+              activeTab === 'history' 
+                ? 'text-[#1D1D1F] dark:text-white' 
+                : 'text-[#6E6E73] dark:text-zinc-500'
+            }`}
+          >
+            历史
+          </button>
+          <motion.div
+            layoutId="activeTab"
+            className="absolute inset-y-1 left-1 bg-white dark:bg-zinc-800 rounded-lg shadow-sm"
+            initial={false}
+            animate={{
+              x: activeTab === 'overview' ? '0%' : '100%',
+              width: 'calc(50% - 4px)'
+            }}
+            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+          />
+        </div>
       </header>
       
-      <div className="space-y-8">
-        {/* Stats Grid */}
-        <section>
-          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">学习统计</h2>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
-              <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">累计学习次数</div>
-              <div className="text-2xl font-bold text-indigo-400">{history.length} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">次</span></div>
-            </div>
-            <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
-              <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">收藏生词</div>
-              <div className="text-2xl font-bold text-purple-400">{savedCount} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">个</span></div>
-            </div>
-          </div>
-          
-          {/* Cyber Grassland */}
-          <ContributionGraph dailyStats={dailyStats} />
-        </section>
+      <AnimatePresence mode="wait">
+        {activeTab === 'overview' ? (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-8"
+          >
+            {/* Stats Grid */}
+            <section>
+              <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">学习统计</h2>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
+                  <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">累计学习次数</div>
+                  <div className="text-2xl font-bold text-indigo-400">{history.length} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">次</span></div>
+                </div>
+                <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
+                  <div className="text-[#6E6E73] dark:text-zinc-400 text-xs mb-1">收藏生词</div>
+                  <div className="text-2xl font-bold text-purple-400">{savedCount} <span className="text-sm font-normal text-[#6E6E73] dark:text-zinc-500">个</span></div>
+                </div>
+              </div>
+              
+              {/* Cyber Grassland */}
+              <ContributionGraph dailyStats={dailyStats} />
+            </section>
 
-        {/* History */}
-        <section>
-          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3 flex items-center justify-between">
-            <span>阅读历史</span>
-            <span className="text-[10px] font-normal normal-case">最近 50 条</span>
-          </h2>
-          <HistoryList 
-            history={history} 
-            onHistoryItemClick={onHistoryItemClick} 
-            onDeleteHistory={(id) => setHistory((prev: any[]) => prev.filter(h => h.id !== id))}
-          />
-        </section>
-
-        {/* Settings */}
-        <section>
-          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">设置</h2>
-          <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl border border-black/5 dark:border-white/5 overflow-hidden transition-colors duration-300">
-            <div className="p-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between">
-              <span className="text-[#1D1D1F] dark:text-zinc-300 text-sm">当前词汇量等级</span>
-              <select 
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
-                className="bg-zinc-100 dark:bg-zinc-800 text-indigo-300 text-sm rounded-lg px-2 py-1 outline-none border border-black/5 dark:border-white/5"
-              >
-                {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-            <div className="p-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between">
-              <span className="text-[#1D1D1F] dark:text-zinc-300 text-sm">外观模式</span>
-              <button 
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${isDarkMode ? 'bg-indigo-500' : 'bg-zinc-300'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-            </div>
-            <button 
-              onClick={handleClear}
-              className="w-full p-4 flex items-center justify-between text-left hover:bg-zinc-100/50 dark:bg-zinc-800/50 transition-colors active:bg-zinc-100 dark:bg-zinc-800"
-            >
-              <span className="text-red-400 text-sm">清除所有数据</span>
-              <Trash2 className="w-4 h-4 text-red-400/50" />
-            </button>
-          </div>
-          
-          <div className="mt-6 flex items-start space-x-2 px-2">
-            <Info className="w-3.5 h-3.5 text-[#6E6E73] dark:text-zinc-500 mt-0.5 shrink-0" />
-            <p className="text-[10px] text-[#6E6E73] dark:text-zinc-500 leading-relaxed">
-              学习进度仅保存在当前设备。清除浏览器缓存会导致进度重置喔。
-            </p>
-          </div>
-        </section>
-      </div>
+            {/* Settings */}
+            <section>
+              <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3">设置</h2>
+              <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl border border-black/5 dark:border-white/5 overflow-hidden transition-colors duration-300">
+                <div className="p-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between">
+                  <span className="text-[#1D1D1F] dark:text-zinc-300 text-sm">当前词汇量等级</span>
+                  <select 
+                    value={level}
+                    onChange={(e) => setLevel(e.target.value)}
+                    className="bg-zinc-100 dark:bg-zinc-800 text-indigo-300 text-sm rounded-lg px-2 py-1 outline-none border border-black/5 dark:border-white/5"
+                  >
+                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                <div className="p-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between">
+                  <span className="text-[#1D1D1F] dark:text-zinc-300 text-sm">外观模式</span>
+                  <button 
+                    onClick={() => setIsDarkMode(!isDarkMode)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${isDarkMode ? 'bg-indigo-500' : 'bg-zinc-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                <button 
+                  onClick={handleClear}
+                  className="w-full p-4 flex items-center justify-between text-left hover:bg-zinc-100/50 dark:bg-zinc-800/50 transition-colors active:bg-zinc-100 dark:bg-zinc-800"
+                >
+                  <span className="text-red-400 text-sm">清除所有数据</span>
+                  <Trash2 className="w-4 h-4 text-red-400/50" />
+                </button>
+              </div>
+              
+              <div className="mt-6 flex items-start space-x-2 px-2">
+                <Info className="w-3.5 h-3.5 text-[#6E6E73] dark:text-zinc-500 mt-0.5 shrink-0" />
+                <p className="text-[10px] text-[#6E6E73] dark:text-zinc-500 leading-relaxed">
+                  学习进度仅保存在当前设备。清除浏览器缓存会导致进度重置喔。
+                </p>
+              </div>
+            </section>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="history"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <section>
+              <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+                <span>阅读历史</span>
+                <span className="text-[10px] font-normal normal-case">最近 50 条</span>
+              </h2>
+              <HistoryList 
+                history={history} 
+                onHistoryItemClick={onHistoryItemClick} 
+                onDeleteHistory={(id) => setHistory((prev: any[]) => prev.filter(h => h.id !== id))}
+              />
+            </section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
