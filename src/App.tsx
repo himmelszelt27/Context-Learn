@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Bookmark, Cat, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp, Calendar, History, Clock, BarChart2, Info } from 'lucide-react';
+import { BookOpen, Bookmark, Cat, Sparkles, Loader2, ArrowLeft, Trash2, CheckCircle2, X, ChevronDown, ChevronUp, Calendar, History, Clock, BarChart2, Info, Maximize2 } from 'lucide-react';
 import { generateLesson, lookupWord } from './services/geminiService';
 
 const LEVELS = ['高中', '四级', '六级', '考研', '专四', '专八', '雅思托福'];
+
+// 格式化日期为本地 YYYY-MM-DD
+const formatDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // --- Hooks ---
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -411,7 +419,7 @@ function PreviewView({
       };
 
       const recordActivity = (data: any) => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = formatDate(new Date());
         
         // 计算生成的英文总词数，而不是输入文本的长度
         const generatedWordCount = (data.paragraphs || []).reduce((acc: number, p: any) => {
@@ -643,7 +651,7 @@ function ReadingView({
   const [isLookingUp, setIsLookingUp] = useState(false);
 
   const recordMasteredWord = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDate(new Date());
     setDailyStats((prev: any) => {
       const current = prev[today] || { wordCount: 0, masteredWords: 0 };
       return {
@@ -736,7 +744,7 @@ function ReadingView({
                       setSelectedPhrase({...phrase});
                       setShowChinese(false);
                     }}
-                    className="bg-[#D1FAE5] text-[#065F46] dark:bg-emerald-500/20 dark:text-emerald-200 rounded px-1 cursor-pointer hover:bg-[#A7F3D0] dark:hover:bg-emerald-500/40 transition-colors active:bg-[#6EE7B7] dark:active:bg-emerald-500/50"
+                    className="bg-[#D1FAE5] text-[#065F46] dark:bg-emerald-500/20 dark:text-emerald-400 rounded px-1 cursor-pointer hover:bg-[#A7F3D0] dark:hover:bg-emerald-500/40 transition-colors active:bg-[#6EE7B7] dark:active:bg-emerald-500/50"
                   >
                     {split}
                   </span>
@@ -1140,13 +1148,13 @@ function ReadingView({
               <div className="space-y-6 mb-8">
                 {/* Context Meaning */}
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-4 border border-emerald-100 dark:border-emerald-500/20">
-                  <div className="text-sm font-medium text-emerald-600 dark:text-emerald-300 mb-2 flex items-center">
+                  <div className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-2 flex items-center">
                     <span className="mr-2">🎯</span> 语境义
                   </div>
                   <div className="text-sm text-[#1D1D1F] dark:text-zinc-300 leading-relaxed">
                     {selectedPhrase.contextMeaningEn || selectedPhrase.meaning}
                     {showChinese && selectedPhrase.contextMeaningCn && (
-                      <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-500/20 text-emerald-600/80 dark:text-emerald-200/80">
+                      <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-500/20 text-emerald-600/80 dark:text-emerald-400/70">
                         {selectedPhrase.contextMeaningCn}
                       </div>
                     )}
@@ -1366,6 +1374,27 @@ function VocabView({ savedVocab, setSavedVocab, savedPhrases, setSavedPhrases }:
 }
 
 // --- Vocab & Phrase Cards ---
+function ContextText({ text, theme = 'blue' }: { text: string, theme?: 'blue' | 'emerald' }) {
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+  const isLong = text.length > 160; 
+
+  return (
+    <div className="relative">
+      <div className={`text-sm text-[#6E6E73] dark:text-zinc-400 italic border-l-2 ${theme === 'blue' ? 'border-blue-300 dark:border-indigo-500/50' : 'border-emerald-300 dark:border-emerald-500/50'} pl-3 py-0.5 ${!isTextExpanded && isLong ? 'line-clamp-3' : ''}`}>
+        "{text}"
+      </div>
+      {isLong && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); setIsTextExpanded(!isTextExpanded); }}
+          className={`text-[10px] font-bold ${theme === 'blue' ? 'text-blue-500 dark:text-indigo-400' : 'text-emerald-500 dark:text-emerald-400'} mt-1 hover:underline`}
+        >
+          {isTextExpanded ? '收起原文' : '阅读全文'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function VocabCard({ item, onDelete }: { item: VocabItem, onDelete: () => void, key?: React.Key }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -1396,7 +1425,7 @@ function VocabCard({ item, onDelete }: { item: VocabItem, onDelete: () => void, 
       </div>
 
       {/* Core */}
-      <div className="mb-4">
+      <div className="mb-0">
         <div className="flex items-baseline space-x-2 mb-1">
           <span className="text-xs font-bold text-blue-500 bg-blue-50 dark:text-indigo-300 dark:bg-indigo-500/20 px-1.5 py-0.5 rounded">{item.partOfSpeech}</span>
           <span className="text-base font-bold text-blue-600 dark:text-indigo-200">{chineseMeaning}</span>
@@ -1404,34 +1433,6 @@ function VocabCard({ item, onDelete }: { item: VocabItem, onDelete: () => void, 
         {englishMeaning && (
           <div className="text-sm text-[#6E6E73] dark:text-zinc-400 leading-snug">{englishMeaning}</div>
         )}
-      </div>
-
-      {/* Contexts */}
-      <div className="mb-4 space-y-3">
-        {item.sourceText && (
-          <div>
-            {item.contexts && item.contexts.length > 0 && (
-              <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span>语境 1</span>
-                <span className="text-blue-600 dark:text-indigo-300 normal-case">{chineseMeaning}</span>
-              </div>
-            )}
-            <div className="text-sm text-[#6E6E73] dark:text-zinc-400 italic border-l-2 border-blue-300 dark:border-indigo-500/50 pl-3 py-0.5">
-              "{item.sourceText}"
-            </div>
-          </div>
-        )}
-        {item.contexts?.map((ctx, idx) => (
-          <div key={idx}>
-            <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
-              <span>语境 {idx + 2}</span>
-              <span className="text-blue-600 dark:text-indigo-300 normal-case">{ctx.meaning}</span>
-            </div>
-            <div className="text-sm text-[#6E6E73] dark:text-zinc-400 italic border-l-2 border-blue-300 dark:border-indigo-500/50 pl-3 py-0.5">
-              "{ctx.sourceText}"
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* Expanded Content */}
@@ -1443,7 +1444,31 @@ function VocabCard({ item, onDelete }: { item: VocabItem, onDelete: () => void, 
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="pt-4 border-t border-black/10 dark:border-white/10 space-y-4">
+            <div className="pt-4 mt-4 border-t border-black/10 dark:border-white/10 space-y-4">
+              {/* Contexts */}
+              <div className="space-y-3">
+                {item.sourceText && (
+                  <div>
+                    {item.contexts && item.contexts.length > 0 && (
+                      <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <span>语境 1</span>
+                        <span className="text-blue-600 dark:text-indigo-300 normal-case">{chineseMeaning}</span>
+                      </div>
+                    )}
+                    <ContextText text={item.sourceText} theme="blue" />
+                  </div>
+                )}
+                {item.contexts?.map((ctx, idx) => (
+                  <div key={idx}>
+                    <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                      <span>语境 {idx + 2}</span>
+                      <span className="text-blue-600 dark:text-indigo-300 normal-case">{ctx.meaning}</span>
+                    </div>
+                    <ContextText text={ctx.sourceText} theme="blue" />
+                  </div>
+                ))}
+              </div>
+
               {/* Collocations */}
               {item.collocations && item.collocations.length > 0 && (
                 <div>
@@ -1512,7 +1537,7 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
           {item.contextTags && item.contextTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {item.contextTags.map((tag, idx) => (
-                <span key={idx} className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                <span key={idx} className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
                   {tag}
                 </span>
               ))}
@@ -1528,11 +1553,11 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
       </div>
 
       {/* Core */}
-      <div className="mb-4 space-y-2">
+      <div className="mb-0 space-y-2">
         <div className="flex items-start">
           <span className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 w-16 shrink-0 mt-0.5">语境义</span>
           <div className="flex flex-col">
-            <span className="text-base font-bold text-emerald-600 dark:text-emerald-200">{item.contextMeaningCn || item.meaning}</span>
+            <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">{item.contextMeaningCn || item.meaning}</span>
             {item.contextMeaningEn && <span className="text-sm text-[#6E6E73] dark:text-zinc-400 mt-0.5">{item.contextMeaningEn}</span>}
           </div>
         </div>
@@ -1547,34 +1572,6 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
         )}
       </div>
 
-      {/* Contexts */}
-      <div className="mb-4 space-y-3">
-        {item.sourceText && (
-          <div>
-            {item.contexts && item.contexts.length > 0 && (
-              <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span>语境 1</span>
-                <span className="text-emerald-600 dark:text-emerald-300 normal-case">{item.contextMeaningCn || item.meaning}</span>
-              </div>
-            )}
-            <div className="text-sm text-[#6E6E73] dark:text-zinc-400 italic border-l-2 border-blue-300 dark:border-emerald-500/50 pl-3 py-0.5">
-              "{item.sourceText}"
-            </div>
-          </div>
-        )}
-        {item.contexts?.map((ctx, idx) => (
-          <div key={idx}>
-            <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
-              <span>语境 {idx + 2}</span>
-              <span className="text-emerald-600 dark:text-emerald-300 normal-case">{ctx.meaning}</span>
-            </div>
-            <div className="text-sm text-[#6E6E73] dark:text-zinc-400 italic border-l-2 border-blue-300 dark:border-emerald-500/50 pl-3 py-0.5">
-              "{ctx.sourceText}"
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Expanded Content */}
       <AnimatePresence>
         {isExpanded && (
@@ -1584,7 +1581,31 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="pt-4 border-t border-black/10 dark:border-white/10 space-y-4">
+            <div className="pt-4 mt-4 border-t border-black/10 dark:border-white/10 space-y-4">
+              {/* Contexts */}
+              <div className="space-y-3">
+                {item.sourceText && (
+                  <div>
+                    {item.contexts && item.contexts.length > 0 && (
+                      <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <span>语境 1</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 normal-case">{item.contextMeaningCn || item.meaning}</span>
+                      </div>
+                    )}
+                    <ContextText text={item.sourceText} theme="emerald" />
+                  </div>
+                )}
+                {item.contexts?.map((ctx, idx) => (
+                  <div key={idx}>
+                    <div className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                      <span>语境 {idx + 2}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 normal-case">{ctx.meaning}</span>
+                    </div>
+                    <ContextText text={ctx.sourceText} theme="emerald" />
+                  </div>
+                ))}
+              </div>
+
               {/* Synonyms / Paraphrase */}
               {item.synonyms && item.synonyms.length > 0 && (
                 <div>
@@ -1622,78 +1643,288 @@ function PhraseCard({ item, onDelete }: { item: PhraseItem, onDelete: () => void
 // --- Profile View ---
 // --- Profile View Components ---
 function ContributionGraph({ dailyStats }: { dailyStats: Record<string, { wordCount: number, masteredWords: number }> }) {
+  const [showFullLawn, setShowFullLawn] = useState(false);
+
   const today = new Date();
-  // 计算最近 4 周的起始日（从 3 周前的周一开始，确保对齐）
-  const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday...
-  const daysToMonday = (currentDay === 0 ? 6 : currentDay - 1);
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - daysToMonday - 21); // 回退到 3 周前的周一
+  const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  
+  // 获取当前查看月份的所有日期
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    // 补齐月初到周一的空位 (0:日, 1:一, ..., 6:六)
+    const startOffset = (firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1);
+    const days = [];
+    
+    // 填充前导空位
+    for (let i = 0; i < startOffset; i++) {
+      days.push(null);
+    }
+    
+    // 填充实际日期
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      const d = new Date(year, month, i);
+      days.push(formatDate(d));
+    }
+    
+    return days;
+  };
 
-  const days = Array.from({ length: 28 }, (_, i) => {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
-    return d.toISOString().split('T')[0];
-  });
-
+  const days = getDaysInMonth(viewDate);
   const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
 
-  const getAnimal = (count: number, day: string) => {
-    if (count === 0) return null;
+  // 计算全览数据：从有记录的第一天开始
+  const getFullDays = () => {
+    const recordedDates = Object.keys(dailyStats).sort();
+    let start;
     
-    // 使用日期作为种子来选择固定的动物，这样刷新页面不会变
-    const seed = day.split('-').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const animals = ['🐱', '🐶', '🦊', '🐰', '🐼', '🐨', '🦁', '🐯', '🐸', '🐷'];
-    const animal = animals[seed % animals.length];
+    if (recordedDates.length > 0) {
+      // 从第一条记录的那周周一开始
+      const firstDate = new Date(recordedDates[0]);
+      const day = firstDate.getDay();
+      const diff = (day === 0 ? 6 : day - 1);
+      start = new Date(firstDate);
+      start.setDate(firstDate.getDate() - diff);
+    } else {
+      // 如果没记录，就显示本周
+      const day = today.getDay();
+      const diff = (day === 0 ? 6 : day - 1);
+      start = new Date(today);
+      start.setDate(today.getDate() - diff);
+    }
 
-    if (count < 200) return <span className="opacity-40 grayscale-[0.5]">{animal}</span>;
-    if (count < 500) return <span className="opacity-70">{animal}</span>;
-    if (count < 1000) return <span className="scale-110">{animal}</span>;
-    return <span className="scale-125 drop-shadow-md">{animal}</span>;
+    const allDays = [];
+    const curr = new Date(start);
+    const end = new Date(today);
+    // 补齐到本周末
+    const endDay = end.getDay();
+    const endDiff = (endDay === 0 ? 0 : 7 - endDay);
+    end.setDate(end.getDate() + endDiff);
+
+    while (curr <= end) {
+      allDays.push(formatDate(new Date(curr)));
+      curr.setDate(curr.getDate() + 1);
+    }
+    return allDays;
+  };
+
+  const fullDays = getFullDays();
+
+  const [heatmapTheme, setHeatmapTheme] = useState<string>(() => localStorage.getItem('heatmapTheme') || 'emerald');
+
+  useEffect(() => {
+    localStorage.setItem('heatmapTheme', heatmapTheme);
+  }, [heatmapTheme]);
+
+  const getThemeColors = (theme: string) => {
+    const themes: Record<string, string[]> = {
+      emerald: [
+        'bg-zinc-100 dark:bg-zinc-800/50', 
+        'bg-emerald-500/10 dark:bg-emerald-500/20', 
+        'bg-emerald-500/30 dark:bg-emerald-500/40', 
+        'bg-emerald-500/55 dark:bg-emerald-500/70', 
+        'bg-emerald-500/85 dark:bg-emerald-500'
+      ],
+      indigo: [
+        'bg-zinc-100 dark:bg-zinc-800/50', 
+        'bg-indigo-500/10 dark:bg-indigo-500/20', 
+        'bg-indigo-500/30 dark:bg-indigo-500/40', 
+        'bg-indigo-500/55 dark:bg-indigo-500/70', 
+        'bg-indigo-500/85 dark:bg-indigo-500'
+      ],
+      pink: [
+        'bg-zinc-100 dark:bg-zinc-800/50', 
+        'bg-pink-500/10 dark:bg-pink-500/20', 
+        'bg-pink-500/30 dark:bg-pink-500/40', 
+        'bg-pink-500/55 dark:bg-pink-500/70', 
+        'bg-pink-500/85 dark:bg-pink-500'
+      ],
+      amber: [
+        'bg-zinc-100 dark:bg-zinc-800/50', 
+        'bg-amber-500/10 dark:bg-amber-500/20', 
+        'bg-amber-500/30 dark:bg-amber-500/40', 
+        'bg-amber-500/55 dark:bg-amber-500/70', 
+        'bg-amber-500/85 dark:bg-amber-500'
+      ],
+      zinc: [
+        'bg-zinc-100 dark:bg-zinc-800/50', 
+        'bg-zinc-500/10 dark:bg-zinc-400/20', 
+        'bg-zinc-500/30 dark:bg-zinc-400/40', 
+        'bg-zinc-500/55 dark:bg-zinc-400/70', 
+        'bg-zinc-500/85 dark:bg-zinc-400'
+      ],
+    };
+    return themes[theme] || themes.emerald;
   };
 
   const getBgColor = (count: number) => {
-    if (count === 0) return 'bg-zinc-100 dark:bg-zinc-800/50';
-    if (count < 200) return 'bg-emerald-100 dark:bg-emerald-900/20';
-    if (count < 500) return 'bg-emerald-200 dark:bg-emerald-800/30';
-    if (count < 1000) return 'bg-emerald-300 dark:bg-emerald-700/40';
-    return 'bg-emerald-400 dark:bg-emerald-600/50';
+    const colors = getThemeColors(heatmapTheme);
+    if (count === 0) return colors[0];
+    if (count < 200) return colors[1];
+    if (count < 500) return colors[2];
+    if (count < 1000) return colors[3];
+    return colors[4];
   };
 
+  const getRingColor = (theme: string) => {
+    const rings: Record<string, string> = {
+      emerald: 'ring-emerald-500',
+      indigo: 'ring-indigo-500',
+      pink: 'ring-pink-500',
+      amber: 'ring-amber-500',
+      zinc: 'ring-zinc-500',
+    };
+    return rings[theme] || rings.emerald;
+  };
+
+  const changeMonth = (offset: number) => {
+    setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
+  };
+
+  const isCurrentMonth = viewDate.getMonth() === today.getMonth() && viewDate.getFullYear() === today.getFullYear();
+
   return (
-    <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider flex items-center">
-          <Calendar className="w-3 h-3 mr-1.5" /> 赛博动物园 (最近4周)
-        </h3>
-        <div className="flex items-center space-x-1 text-[10px] text-[#6E6E73] dark:text-zinc-500">
-          <span>阅读解锁小动物</span>
+    <>
+      <div className="bg-white/60 dark:bg-zinc-900/60 rounded-2xl p-4 border border-black/5 dark:border-white/5 transition-colors duration-300">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <h3 className="text-xs font-bold text-[#6E6E73] dark:text-zinc-500 uppercase tracking-wider flex items-center">
+              <Calendar className="w-3 h-3 mr-1.5" /> 
+              {viewDate.getFullYear()}年{viewDate.getMonth() + 1}月
+            </h3>
+            <button 
+              onClick={() => setShowFullLawn(true)}
+              className="ml-2 p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-[#6E6E73] dark:text-zinc-500"
+              title="全览"
+            >
+              <Maximize2 className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="flex bg-black/5 dark:bg-white/5 rounded-lg p-0.5">
+              <button 
+                onClick={() => changeMonth(-1)}
+                className="p-1 hover:bg-white dark:hover:bg-zinc-800 rounded-md transition-all text-[#6E6E73] dark:text-zinc-400"
+              >
+                <ChevronDown className="w-3 h-3 rotate-90" />
+              </button>
+              <button 
+                onClick={() => changeMonth(1)}
+                disabled={isCurrentMonth}
+                className={`p-1 rounded-md transition-all ${isCurrentMonth ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white dark:hover:bg-zinc-800 text-[#6E6E73] dark:text-zinc-400'}`}
+              >
+                <ChevronDown className="w-3 h-3 -rotate-90" />
+              </button>
+            </div>
+            <div className="flex items-center space-x-1 ml-2">
+              {['emerald', 'indigo', 'pink', 'amber', 'zinc'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setHeatmapTheme(t)}
+                  className={`w-3 h-3 rounded-full transition-all ${heatmapTheme === t ? `ring-1 ring-offset-1 ${getRingColor(t)} scale-110` : 'opacity-40 hover:opacity-100'} ${
+                    t === 'emerald' ? 'bg-emerald-400' :
+                    t === 'indigo' ? 'bg-indigo-400' :
+                    t === 'pink' ? 'bg-pink-400' :
+                    t === 'amber' ? 'bg-amber-400' : 'bg-zinc-400'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1.5 mb-1">
+          {weekDays.map(d => (
+            <div key={d} className="text-[8px] text-[#6E6E73] dark:text-zinc-500 text-center font-bold">{d}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1.5">
+          {days.map((day, idx) => {
+            if (!day) return <div key={`empty-${idx}`} className="aspect-square" />;
+            
+            const stats = dailyStats[day] || { wordCount: 0 };
+            const isToday = day === formatDate(today);
+            return (
+              <div 
+                key={day} 
+                className={`aspect-square rounded-sm ${getBgColor(stats.wordCount)} transition-all relative group ${isToday ? `ring-1 ${getRingColor(heatmapTheme)} ring-offset-1 dark:ring-offset-zinc-900` : ''}`}
+              >
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                  {day}: {stats.wordCount} 字
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
-      
-      <div className="grid grid-cols-7 gap-1.5 mb-1">
-        {weekDays.map(d => (
-          <div key={d} className="text-[8px] text-[#6E6E73] dark:text-zinc-500 text-center font-bold">{d}</div>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-7 gap-1.5">
-        {days.map(day => {
-          const stats = dailyStats[day] || { wordCount: 0 };
-          const isToday = day === today.toISOString().split('T')[0];
-          return (
-            <div 
-              key={day} 
-              className={`aspect-square rounded-lg ${getBgColor(stats.wordCount)} transition-all flex items-center justify-center text-sm relative group ${isToday ? 'ring-1 ring-indigo-400 ring-offset-1 dark:ring-offset-zinc-900' : ''}`}
+      <AnimatePresence>
+        {showFullLawn && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4"
+            onClick={() => setShowFullLawn(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
             >
-              {getAnimal(stats.wordCount, day)}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
-                {day}: {stats.wordCount} 字
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-[#1D1D1F] dark:text-zinc-50">赛博草坪全览</h2>
+                  <p className="text-sm text-[#6E6E73] dark:text-zinc-500">记录你从第一天开始的学习足迹</p>
+                </div>
+                <button 
+                  onClick={() => setShowFullLawn(false)}
+                  className="p-2 bg-[#F5F5F7] dark:bg-zinc-800 rounded-full text-[#6E6E73] dark:text-zinc-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+
+              <div className="overflow-x-auto pb-4 -mx-2 px-2">
+                <div className="inline-grid grid-rows-7 grid-flow-col gap-1.5 min-w-max">
+                  {fullDays.map(day => {
+                    const stats = dailyStats[day] || { wordCount: 0 };
+                    const isToday = day === formatDate(today);
+                    return (
+                      <div 
+                        key={day} 
+                        className={`w-3 h-3 rounded-sm ${getBgColor(stats.wordCount)} transition-all relative group ${isToday ? `ring-1 ${getRingColor(heatmapTheme)} ring-offset-1 dark:ring-offset-zinc-900` : ''}`}
+                      >
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-20 transition-opacity">
+                          {day}: {stats.wordCount} 字
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between text-[10px] text-[#6E6E73] dark:text-zinc-500">
+                <div className="flex items-center space-x-2">
+                  <span>少</span>
+                  <div className="flex space-x-1">
+                    {getThemeColors(heatmapTheme).map((c, i) => (
+                      <div key={i} className={`w-2 h-2 rounded-sm ${c}`} />
+                    ))}
+                  </div>
+                  <span>多</span>
+                </div>
+                <div>
+                  累计打卡 {Object.keys(dailyStats).length} 天
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
